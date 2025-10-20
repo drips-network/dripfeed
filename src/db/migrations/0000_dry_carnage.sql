@@ -1,0 +1,217 @@
+CREATE TYPE account_type AS ENUM('project', 'address', 'drip_list', 'linked_identity', 'ecosystem_main_account', 'sub_list', 'deadline');--> statement-breakpoint
+CREATE TYPE status AS ENUM('pending', 'processed', 'failed');--> statement-breakpoint
+CREATE TYPE forges AS ENUM('github', 'gitlab');--> statement-breakpoint
+CREATE TYPE linked_identity_types AS ENUM('orcid');--> statement-breakpoint
+CREATE TYPE verification_status AS ENUM('claimed', 'unclaimed', 'pending_metadata');--> statement-breakpoint
+CREATE TYPE relationship_type AS ENUM('project_maintainer', 'project_dependency', 'drip_list_receiver', 'ecosystem_receiver', 'sub_list_link', 'sub_list_receiver', 'identity_owner');--> statement-breakpoint
+CREATE TABLE "_block_hashes" (
+	"chain_id" text NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "_block_hashes_chain_id_block_number_unique" UNIQUE("chain_id","block_number")
+);
+--> statement-breakpoint
+CREATE TABLE "_cursor" (
+	"chain_id" text PRIMARY KEY NOT NULL,
+	"fetched_to_block" bigint NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "deadlines" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"receiver_account_id" text NOT NULL,
+	"receiver_account_type" "account_type" NOT NULL,
+	"claimable_project_id" text NOT NULL,
+	"deadline" timestamp with time zone NOT NULL,
+	"refund_account_id" text NOT NULL,
+	"refund_account_type" "account_type" NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "drip_lists" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"is_valid" boolean NOT NULL,
+	"owner_address" text NOT NULL,
+	"owner_account_id" text NOT NULL,
+	"name" text,
+	"latest_voting_round_id" uuid,
+	"description" text,
+	"creator" text,
+	"previous_owner_address" text,
+	"is_visible" boolean NOT NULL,
+	"last_processed_ipfs_hash" text,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ecosystem_main_accounts" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"is_valid" boolean NOT NULL,
+	"owner_address" text NOT NULL,
+	"owner_account_id" text NOT NULL,
+	"name" text,
+	"description" text,
+	"creator" text,
+	"previous_owner_address" text,
+	"is_visible" boolean NOT NULL,
+	"last_processed_ipfs_hash" text NOT NULL,
+	"avatar" text NOT NULL,
+	"color" text NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "_events" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"chain_id" text NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_hash" text NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"tx_index" integer NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"contract_address" text NOT NULL,
+	"event_name" text NOT NULL,
+	"event_sig" text NOT NULL,
+	"args" jsonb NOT NULL,
+	"status" "status" DEFAULT 'pending' NOT NULL,
+	"error_message" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"processed_at" timestamp with time zone,
+	CONSTRAINT "_events_chain_id_block_number_tx_index_log_index_unique" UNIQUE("chain_id","block_number","tx_index","log_index")
+);
+--> statement-breakpoint
+CREATE TABLE "linked_identities" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"identity_type" "linked_identity_types" NOT NULL,
+	"orcid_id" text NOT NULL,
+	"owner_address" text,
+	"owner_account_id" text,
+	"claimed_at" timestamp with time zone,
+	"are_splits_valid" boolean DEFAULT false NOT NULL,
+	"last_processed_ipfs_hash" text,
+	"is_valid" boolean NOT NULL,
+	"is_visible" boolean NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "_pending_nft_transfers" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"owner_address" text NOT NULL,
+	"owner_account_id" text NOT NULL,
+	"creator" text,
+	"previous_owner_address" text,
+	"is_visible" boolean NOT NULL,
+	"block_number" bigint NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "projects" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"owner_address" text,
+	"owner_account_id" text,
+	"claimed_at" timestamp with time zone,
+	"url" text,
+	"forge" "forges" NOT NULL,
+	"emoji" text,
+	"color" text,
+	"avatar_cid" text,
+	"last_processed_ipfs_hash" text,
+	"verification_status" "verification_status" NOT NULL,
+	"is_valid" boolean NOT NULL,
+	"is_visible" boolean NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "splits_receivers" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"receiver_account_id" text NOT NULL,
+	"receiver_account_type" "account_type" NOT NULL,
+	"sender_account_id" text NOT NULL,
+	"sender_account_type" "account_type" NOT NULL,
+	"relationship_type" "relationship_type" NOT NULL,
+	"weight" integer NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"splits_to_repo_driver_sub_account" boolean,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "splits_receivers_sender_account_id_receiver_account_id_relationship_type_unique" UNIQUE("sender_account_id","receiver_account_id","relationship_type")
+);
+--> statement-breakpoint
+CREATE TABLE "sub_lists" (
+	"account_id" text PRIMARY KEY NOT NULL,
+	"is_valid" boolean NOT NULL,
+	"parent_account_id" text NOT NULL,
+	"parent_account_type" "account_type" NOT NULL,
+	"root_account_id" text NOT NULL,
+	"root_account_type" "account_type" NOT NULL,
+	"is_visible" boolean NOT NULL,
+	"last_processed_ipfs_hash" text NOT NULL,
+	"last_event_block" bigint,
+	"last_event_tx_index" integer,
+	"last_event_log_index" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX "idx_block_hashes_lookup" ON "_block_hashes" USING btree ("chain_id","block_number" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_deadlines_receiver_account_id" ON "deadlines" USING btree ("receiver_account_id");--> statement-breakpoint
+CREATE INDEX "idx_deadlines_claimable_project_id" ON "deadlines" USING btree ("claimable_project_id");--> statement-breakpoint
+CREATE INDEX "idx_deadlines_refund_account_id" ON "deadlines" USING btree ("refund_account_id");--> statement-breakpoint
+CREATE INDEX "idx_deadlines_deadline" ON "deadlines" USING btree ("deadline");--> statement-breakpoint
+CREATE INDEX "idx_deadlines_event_pointer" ON "deadlines" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_drip_lists_owner_address" ON "drip_lists" USING btree ("owner_address");--> statement-breakpoint
+CREATE INDEX "idx_drip_lists_event_pointer" ON "drip_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_ecosystem_main_accounts_owner_address" ON "ecosystem_main_accounts" USING btree ("owner_address");--> statement-breakpoint
+CREATE INDEX "idx_ecosystem_main_accounts_event_pointer" ON "ecosystem_main_accounts" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_events_chain_block" ON "_events" USING btree ("chain_id","block_number");--> statement-breakpoint
+CREATE INDEX "idx_events_status" ON "_events" USING btree ("status") WHERE status != 'processed';--> statement-breakpoint
+CREATE INDEX "idx_events_signature" ON "_events" USING btree ("event_sig");--> statement-breakpoint
+CREATE INDEX "idx_events_name" ON "_events" USING btree ("event_name");--> statement-breakpoint
+CREATE INDEX "idx_linked_identities_owner_address" ON "linked_identities" USING btree ("owner_address");--> statement-breakpoint
+CREATE INDEX "idx_linked_identities_identity_type" ON "linked_identities" USING btree ("identity_type");--> statement-breakpoint
+CREATE INDEX "idx_linked_identities_orcid_id" ON "linked_identities" USING btree ("orcid_id");--> statement-breakpoint
+CREATE INDEX "idx_linked_identities_event_pointer" ON "linked_identities" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx__pending_nft_transfers_block_number" ON "_pending_nft_transfers" USING btree ("block_number");--> statement-breakpoint
+CREATE INDEX "idx__pending_nft_transfers_event_pointer" ON "_pending_nft_transfers" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_projects_owner_address" ON "projects" USING btree ("owner_address");--> statement-breakpoint
+CREATE INDEX "idx_projects_verification_status" ON "projects" USING btree ("verification_status");--> statement-breakpoint
+CREATE INDEX "idx_projects_url" ON "projects" USING btree ("url");--> statement-breakpoint
+CREATE INDEX "idx_projects_event_pointer" ON "projects" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_splits_receivers_receiver_sender" ON "splits_receivers" USING btree ("receiver_account_id","sender_account_id");--> statement-breakpoint
+CREATE INDEX "idx_splits_receivers_sender_receiver" ON "splits_receivers" USING btree ("sender_account_id","receiver_account_id");--> statement-breakpoint
+CREATE INDEX "idx_splits_receivers_sender" ON "splits_receivers" USING btree ("sender_account_id");--> statement-breakpoint
+CREATE INDEX "idx_splits_receivers_event_pointer" ON "splits_receivers" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_sub_lists_parent" ON "sub_lists" USING btree ("parent_account_id");--> statement-breakpoint
+CREATE INDEX "idx_sub_lists_root" ON "sub_lists" USING btree ("root_account_id");--> statement-breakpoint
+CREATE INDEX "idx_sub_lists_event_pointer" ON "sub_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");

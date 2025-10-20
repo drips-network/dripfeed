@@ -1,0 +1,69 @@
+services:
+  dripfeed:
+    container_name: dripfeed_container
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SKIP_BUILD=true
+    entrypoint: ["npm", "run", "dev"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-dripfeeddb}
+      - DB_SCHEMA=${DB_SCHEMA:-public}
+      - NETWORK=${NETWORK:-sepolia}
+      - RPC_URL=${RPC_URL}
+      - CONFIRMATIONS=${CONFIRMATIONS:-1}
+      - FETCH_BATCH_SIZE=${FETCH_BATCH_SIZE:-100}
+      - INSERT_CHUNK_SIZE=${INSERT_CHUNK_SIZE:-1000}
+      - PROCESS_BATCH_SIZE=${PROCESS_BATCH_SIZE:-100}
+      - POLL_DELAY=${POLL_DELAY:-12000}
+      - MAX_CONSECUTIVE_ERRORS=${MAX_CONSECUTIVE_ERRORS:-10}
+      - RPC_CONCURRENCY=${RPC_CONCURRENCY:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_PRETTY=${LOG_PRETTY:-true}
+      - IPFS_GATEWAY_URL=${IPFS_GATEWAY_URL:-https://drips.mypinata.cloud}
+      - CACHE_INVALIDATION_ENDPOINT=${CACHE_INVALIDATION_ENDPOINT}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - backend
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres_container
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-dripfeeddb}
+      POSTGRES_INITDB_ARGS: -E UTF8 --locale=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '54321:5432'
+    networks:
+      - backend
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_container
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - '5051:80'
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  backend:
