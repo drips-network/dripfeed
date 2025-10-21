@@ -187,14 +187,14 @@ export class Indexer {
 }
 
 /**
- * Creates an Indexer instance.
+ * Creates an Indexer instance with cleanup function.
  *
  * **IMPORTANT**: Only one instance of `Indexer` should exist per chain, with one schema per chain.
  */
 export function createIndexer(
   config: RuntimeConfig,
   contracts: ReadonlyArray<ContractConfig> = [],
-): Indexer {
+): { indexer: Indexer; cleanup: () => Promise<void> } {
   // Configure pg to parse bigint/bigserial columns as BigInt instead of string.
   types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
 
@@ -263,5 +263,16 @@ export function createIndexer(
     BigInt(config.chain.visibilityThresholdBlockNumber),
   );
 
-  return new Indexer(config, pool, lockManager, reorgDetector, fetcher, processor, cursorRepo);
+  const indexer = new Indexer(config, pool, lockManager, reorgDetector, fetcher, processor, cursorRepo);
+
+  let cleanedUp = false;
+  const cleanup = async (): Promise<void> => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
+    await pool.end();
+  };
+
+  return { indexer, cleanup };
 }
