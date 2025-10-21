@@ -36,6 +36,9 @@ const configSchema = z.object({
   cache: z.object({
     invalidationEndpoint: z.string().url().optional(),
   }),
+  health: z.object({
+    port: z.number().int().positive().default(3000),
+  }),
 });
 
 export const runtimeConfigSchema = configSchema.extend({
@@ -90,6 +93,9 @@ function loadConfig(): Config {
     },
     cache: {
       invalidationEndpoint: process.env.CACHE_INVALIDATION_ENDPOINT || undefined,
+    },
+    health: {
+      port: process.env.HEALTH_PORT ? parseInt(process.env.HEALTH_PORT, 10) : undefined,
     },
   };
 

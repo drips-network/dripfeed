@@ -24,4 +24,8 @@ export function logRuntimeConfig(runtimeConfig: Config, contractConfigs: Contrac
       events: c.handlers.map((e) => e.name),
     })),
   });
+
+  logger.info('health_endpoint', {
+    endpoint: `http://localhost:${runtimeConfig.health.port}/api/health`,
+  });
 }

@@ -33,6 +33,7 @@ export class Indexer {
   private readonly _fetcher: BlockFetcher;
   private readonly _processor: EventProcessor;
   private readonly _cursorRepo: CursorRepository;
+  private _shouldStop = false;
 
   constructor(
     config: RuntimeConfig,
@@ -75,7 +76,7 @@ export class Indexer {
       const baseBackoffMs = Math.max(this._config.indexer.pollDelay, 1000);
       const maxConsecutiveErrors = this._config.indexer.maxConsecutiveErrors;
 
-      while (true) {
+      while (!this._shouldStop) {
         try {
           logger.debug('indexer_loop_iteration', {
             schema: this._schema,
@@ -159,6 +160,17 @@ export class Indexer {
   }
 
   /**
+   * Gracefully stops the indexer loop.
+   */
+  stop(): void {
+    this._shouldStop = true;
+    logger.info('indexer_stop_requested', {
+      schema: this._schema,
+      chain: this._chainId,
+    });
+  }
+
+  /**
    * Initializes and validates the cursor in a transaction.
    */
   private async _initializeCursor(): Promise<void> {
@@ -187,14 +199,20 @@ export class Indexer {
 }
 
 /**
- * Creates an Indexer instance with cleanup function.
+ * Creates an Indexer instance.
  *
  * **IMPORTANT**: Only one instance of `Indexer` should exist per chain, with one schema per chain.
  */
 export function createIndexer(
   config: RuntimeConfig,
   contracts: ReadonlyArray<ContractConfig> = [],
-): { indexer: Indexer; cleanup: () => Promise<void> } {
+): {
+  indexer: Indexer;
+  pool: Pool;
+  rpc: RpcClient;
+  cursorRepo: CursorRepository;
+  chainId: string;
+} {
   // Configure pg to parse bigint/bigserial columns as BigInt instead of string.
   types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
 
@@ -263,16 +281,15 @@ export function createIndexer(
     BigInt(config.chain.visibilityThresholdBlockNumber),
   );
 
-  const indexer = new Indexer(config, pool, lockManager, reorgDetector, fetcher, processor, cursorRepo);
+  const indexer = new Indexer(
+    config,
+    pool,
+    lockManager,
+    reorgDetector,
+    fetcher,
+    processor,
+    cursorRepo,
+  );
 
-  let cleanedUp = false;
-  const cleanup = async (): Promise<void> => {
-    if (cleanedUp) {
-      return;
-    }
-    cleanedUp = true;
-    await pool.end();
-  };
-
-  return { indexer, cleanup };
+  return { indexer, pool, rpc, cursorRepo, chainId };
 }
