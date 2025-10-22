@@ -1,12 +1,17 @@
-import { initTelemetry } from './telemetry.js';
-import { config, runtimeConfigSchema } from './config.js';
-import { logger } from './logger.js';
-import { loadChainConfig } from './chain-configs/loadChainConfig.js';
-import { logRuntimeConfig } from './utils/logRuntimeConfig.js';
-import { createIndexer } from './core/Indexer.js';
-import { createHealthServer } from './health.js';
+import { config as loadEnv } from 'dotenv';
+import { expand } from 'dotenv-expand';
 
+import { initTelemetry } from './telemetry.js';
+
+expand(loadEnv());
 initTelemetry();
+
+const { config, runtimeConfigSchema } = await import('./config.js');
+const { logger } = await import('./logger.js');
+const { loadChainConfig } = await import('./chain-configs/loadChainConfig.js');
+const { logRuntimeConfig } = await import('./utils/logRuntimeConfig.js');
+const { createIndexer } = await import('./core/Indexer.js');
+const { createHealthServer } = await import('./health.js');
 
 logger.setMinLevel(config.logging.level);
 

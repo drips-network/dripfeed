@@ -124,7 +124,7 @@ export function initTelemetry(): void {
     instrumentations: [
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
-        '@opentelemetry/instrumentation-pg': { enabled: false },
+        '@opentelemetry/instrumentation-pg': { enabled: true },
       }),
     ],
   });
