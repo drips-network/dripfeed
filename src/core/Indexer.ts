@@ -1,5 +1,6 @@
 import { Pool, types } from 'pg';
 import { createPublicClient, http, type Chain } from 'viem';
+import { SpanStatusCode } from '@opentelemetry/api';
 
 import { logger } from '../logger.js';
 import { sleep } from '../utils/sleep.js';
@@ -11,6 +12,7 @@ import { validateSchemaName } from '../utils/sqlValidation.js';
 import { Contracts } from '../services/Contracts.js';
 import { MetadataService } from '../services/MetadataService.js';
 import { CacheInvalidationService } from '../services/CacheInvalidationService.js';
+import { getTracer, getMeter } from '../telemetry.js';
 
 import { RpcClient } from './RpcClient.js';
 import { BlockFetcher } from './BlockFetcher.js';
@@ -19,6 +21,13 @@ import { EventDecoder } from './EventDecoder.js';
 import { EventProcessor } from './EventProcessor.js';
 import { LockManager } from './LockManager.js';
 import { ReorgDetector } from './ReorgDetector.js';
+
+const tracer = getTracer();
+const meter = getMeter();
+
+const reorgsCounter = meter.createCounter('indexer.reorgs.detected', {
+  description: 'Total number of reorgs detected',
+});
 
 /**
  * Blockchain event indexer with ordered processing.
@@ -34,6 +43,8 @@ export class Indexer {
   private readonly _processor: EventProcessor;
   private readonly _cursorRepo: CursorRepository;
   private _shouldStop = false;
+  private _stoppedPromise: Promise<void> | null = null;
+  private _resolveStoppedPromise: (() => void) | null = null;
 
   constructor(
     config: RuntimeConfig,
@@ -64,6 +75,10 @@ export class Indexer {
   async start(): Promise<void> {
     await this._lockManager.acquire();
 
+    this._stoppedPromise = new Promise((resolve) => {
+      this._resolveStoppedPromise = resolve;
+    });
+
     try {
       await this._initializeCursor();
 
@@ -77,6 +92,14 @@ export class Indexer {
       const maxConsecutiveErrors = this._config.indexer.maxConsecutiveErrors;
 
       while (!this._shouldStop) {
+        const span = tracer.startSpan('indexer.iteration', {
+          attributes: {
+            'chain.id': this._chainId,
+            schema: this._schema,
+            consecutive_errors: consecutiveErrors,
+          },
+        });
+
         try {
           logger.debug('indexer_loop_iteration', {
             schema: this._schema,
@@ -86,34 +109,59 @@ export class Indexer {
 
           const reorgBlock = await this._reorgDetector.detect();
           if (reorgBlock !== null) {
-            if (this._config.indexer.autoHandleReorgs) {
-              logger.warn('reorg_auto_recovery_triggered', {
-                schema: this._schema,
-                chain: this._chainId,
-                reorgBlock: reorgBlock.toString(),
-                message: 'Auto-recovery enabled. Attempting reorg recovery...',
-              });
+            reorgsCounter.add(1, {
+              'chain.id': this._chainId,
+              schema: this._schema,
+            });
 
-              await this._reorgDetector.handleReorg(reorgBlock);
+            const reorgSpan = tracer.startSpan('indexer.reorg.handle', {
+              attributes: {
+                'reorg.block_number': reorgBlock.toString(),
+                'reorg.auto_recovery': this._config.indexer.autoHandleReorgs,
+              },
+            });
 
-              logger.info('reorg_auto_recovery_success', {
-                schema: this._schema,
-                chain: this._chainId,
-                reorgBlock: reorgBlock.toString(),
-                message: 'Reorg recovery completed. Resuming indexing...',
-              });
-            } else {
-              const errorMsg = `🚨 REORG DETECTED at block ${reorgBlock} 🚨\n\nAuto-recovery is DISABLED (AUTO_HANDLE_REORGS=false).\n\nTo recover, you must:\n1. Stop this indexer immediately\n2. Run the rollback script:\n   npm run rollback -- --block ${reorgBlock}\n3. Restart the indexer\n\nIndexer will now exit to prevent data corruption.`;
+            try {
+              if (this._config.indexer.autoHandleReorgs) {
+                logger.warn('reorg_auto_recovery_triggered', {
+                  schema: this._schema,
+                  chain: this._chainId,
+                  reorgBlock: reorgBlock.toString(),
+                  message: 'Auto-recovery enabled. Attempting reorg recovery...',
+                });
 
-              logger.error('reorg_manual_recovery_required', {
-                schema: this._schema,
-                chain: this._chainId,
-                reorgBlock: reorgBlock.toString(),
-                autoHandleReorgs: false,
-                message: errorMsg,
-              });
+                await this._reorgDetector.handleReorg(reorgBlock);
 
-              throw new Error(errorMsg);
+                logger.info('reorg_auto_recovery_success', {
+                  schema: this._schema,
+                  chain: this._chainId,
+                  reorgBlock: reorgBlock.toString(),
+                  message: 'Reorg recovery completed. Resuming indexing...',
+                });
+
+                reorgSpan.setStatus({ code: SpanStatusCode.OK });
+                span.setAttribute('iteration.result', 'reorg_recovered');
+              } else {
+                const errorMsg = `🚨 REORG DETECTED at block ${reorgBlock} 🚨\n\nAuto-recovery is DISABLED (AUTO_HANDLE_REORGS=false).\n\nTo recover, you must:\n1. Stop this indexer immediately\n2. Run the rollback script:\n   npm run rollback -- --block ${reorgBlock}\n3. Restart the indexer\n\nIndexer will now exit to prevent data corruption.`;
+
+                logger.error('reorg_manual_recovery_required', {
+                  schema: this._schema,
+                  chain: this._chainId,
+                  reorgBlock: reorgBlock.toString(),
+                  autoHandleReorgs: false,
+                  message: errorMsg,
+                });
+
+                reorgSpan.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: 'Manual recovery required',
+                });
+                span.setAttribute('iteration.result', 'reorg_detected');
+
+                throw new Error(errorMsg);
+              }
+            } finally {
+              reorgSpan.end();
             }
           }
 
@@ -122,14 +170,25 @@ export class Indexer {
 
           consecutiveErrors = 0;
 
+          span.setAttribute('iteration.result', 'success');
+          span.setStatus({ code: SpanStatusCode.OK });
+
           if (!fetchResult) {
             await sleep(this._config.indexer.pollDelay);
           }
         } catch (error) {
           consecutiveErrors += 1;
+
           const normalizedError = error instanceof Error ? error : new Error(String(error));
           const backoffFactor = Math.min(consecutiveErrors, 5);
           const backoffMs = Math.min(baseBackoffMs * backoffFactor, 60000);
+
+          span.setAttribute('iteration.result', 'error');
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: normalizedError.message,
+          });
+          span.recordException(normalizedError);
 
           logger.error('indexer_loop_error', {
             schema: this._schema,
@@ -152,22 +211,26 @@ export class Indexer {
           }
 
           await sleep(backoffMs);
+        } finally {
+          span.end();
         }
       }
     } finally {
       await this._lockManager.release();
+      this._resolveStoppedPromise?.();
     }
   }
 
   /**
-   * Gracefully stops the indexer loop.
+   * Gracefully stops the indexer loop and waits for it to finish.
    */
-  stop(): void {
+  async stop(): Promise<void> {
     this._shouldStop = true;
     logger.info('indexer_stop_requested', {
       schema: this._schema,
       chain: this._chainId,
     });
+    await this._stoppedPromise;
   }
 
   /**

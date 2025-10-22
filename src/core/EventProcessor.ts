@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { SpanStatusCode } from '@opentelemetry/api';
 
 import { isTransientDbError, withDbRetry } from '../utils/dbRetry.js';
 import { logger } from '../logger.js';
@@ -15,8 +16,19 @@ import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
 import type { Contracts } from '../services/Contracts.js';
+import { getTracer, getMeter } from '../telemetry.js';
 
 import type { EventDecoder } from './EventDecoder.js';
+
+const tracer = getTracer();
+const meter = getMeter();
+
+const eventsProcessedCounter = meter.createCounter('db.events.processed', {
+  description: 'Total number of events successfully processed',
+});
+const eventsFailedCounter = meter.createCounter('db.events.failed', {
+  description: 'Total number of events that failed processing',
+});
 
 export type ProcessResult = {
   blockNumber: bigint;
@@ -166,40 +178,167 @@ export class EventProcessor {
    * On failure, falls back to one-by-one processing to maintain retry logic.
    */
   async processBatch(): Promise<ProcessResult[]> {
-    const endTimer = logger.startTimer('event_batch_processing');
-    return withDbRetry(async () => {
-      const client = await this._pool.connect();
-      const events: DbEvent[] = [];
-      const results: ProcessResult[] = [];
+    const span = tracer.startSpan('indexer.process_batch', {
+      attributes: {
+        'chain.id': this._chainId,
+        schema: this._schema,
+      },
+    });
 
-      try {
-        await client.query('BEGIN');
-        const batch = await this._eventsRepo.getNextPendingEventBatch(client, this._batchSize);
+    try {
+      const endTimer = logger.startTimer('event_batch_processing');
+      return await withDbRetry(async () => {
+        const client = await this._pool.connect();
+        const events: DbEvent[] = [];
+        const results: ProcessResult[] = [];
 
-        if (batch.length === 0) {
-          await client.query('ROLLBACK');
-          endTimer();
-          logger.debug('processor_no_pending_events', {
+        try {
+          await client.query('BEGIN');
+          const batch = await this._eventsRepo.getNextPendingEventBatch(client, this._batchSize);
+
+          if (batch.length === 0) {
+            await client.query('ROLLBACK');
+            endTimer();
+            span.setAttribute('batch.size', 0);
+            span.setStatus({ code: SpanStatusCode.OK });
+            logger.debug('processor_no_pending_events', {
+              schema: this._schema,
+              chainId: this._chainId,
+            });
+            return [];
+          }
+
+          span.setAttribute('batch.size', batch.length);
+
+          logger.info('processor_batch_started', {
             schema: this._schema,
             chainId: this._chainId,
+            batchSize: batch.length,
+            firstPointer: this._formatEventPointer(batch[0]!),
           });
-          return [];
+
+          events.push(...batch);
+
+          const context = this._buildHandlerContext(client);
+
+          for (const event of batch) {
+            const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
+            const handlerEvent = this._toHandlerEvent(event);
+
+            logger.info('handler_executing', {
+              schema: this._schema,
+              chainId: this._chainId,
+              eventName: event.eventName,
+              handler: handler.name,
+              pointer: this._formatEventPointer(event),
+            });
+
+            await handler(handlerEvent, context);
+
+            logger.info('handler_completed', {
+              schema: this._schema,
+              chainId: this._chainId,
+              eventName: event.eventName,
+              handler: handler.name,
+              pointer: this._formatEventPointer(event),
+            });
+
+            await this._eventsRepo.markEventProcessed(
+              client,
+              event.blockNumber,
+              event.txIndex,
+              event.logIndex,
+            );
+
+            results.push({
+              blockNumber: event.blockNumber,
+              txIndex: event.txIndex,
+              logIndex: event.logIndex,
+              eventName: event.eventName,
+            });
+          }
+
+          await client.query('COMMIT');
+
+          eventsProcessedCounter.add(batch.length, {
+            'chain.id': this._chainId,
+            schema: this._schema,
+          });
+
+          logger.info('processor_batch_processed', {
+            schema: this._schema,
+            chainId: this._chainId,
+            eventsProcessed: batch.length,
+            lastPointer: this._formatEventPointer(batch[batch.length - 1]!),
+          });
+
+          span.setAttribute('batch.processed_count', batch.length);
+          span.setAttribute('batch.failed', false);
+          span.setAttribute('batch.fallback_triggered', false);
+
+          endTimer();
+          return results;
+        } catch (error) {
+          await client.query('ROLLBACK');
+
+          span.setAttribute('batch.failed', true);
+          span.setAttribute('batch.fallback_triggered', true);
+
+          logger.warn('processor_batch_failed_fallback_to_individual', {
+            schema: this._schema,
+            chainId: this._chainId,
+            batchSize: events.length,
+            firstPointer: events.length > 0 ? this._formatEventPointer(events[0]!) : 'unknown',
+            lastPointer:
+              events.length > 0 ? this._formatEventPointer(events[events.length - 1]!) : 'unknown',
+            error: this._extractErrorMessage(error),
+          });
+
+          const fallbackResults: ProcessResult[] = [];
+          for (const event of events) {
+            const result = await this._processEvent(event);
+            if (result) {
+              fallbackResults.push(result);
+            }
+          }
+
+          span.setAttribute('batch.processed_count', fallbackResults.length);
+
+          endTimer();
+          return fallbackResults;
+        } finally {
+          client.release();
         }
+      });
+    } finally {
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.end();
+    }
+  }
 
-        logger.info('processor_batch_started', {
-          schema: this._schema,
-          chainId: this._chainId,
-          batchSize: batch.length,
-          firstPointer: this._formatEventPointer(batch[0]!),
-        });
+  /**
+   * Processes specific event (no retry logic).
+   * Returns null if processing fails and marks event as failed immediately.
+   */
+  private async _processEvent(event: DbEvent): Promise<ProcessResult | null> {
+    const span = tracer.startSpan('indexer.process_event', {
+      attributes: {
+        'event.name': event.eventName,
+        'event.block_number': event.blockNumber.toString(),
+      },
+    });
 
-        events.push(...batch);
+    try {
+      return await withDbRetry(async () => {
+        const endTimer = logger.startTimer('event_processing');
+        const client = await this._pool.connect();
 
-        const context = this._buildHandlerContext(client);
+        try {
+          await client.query('BEGIN');
 
-        for (const event of batch) {
           const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
           const handlerEvent = this._toHandlerEvent(event);
+          const context = this._buildHandlerContext(client);
 
           logger.info('handler_executing', {
             schema: this._schema,
@@ -226,122 +365,52 @@ export class EventProcessor {
             event.logIndex,
           );
 
-          results.push({
+          await client.query('COMMIT');
+
+          eventsProcessedCounter.add(1, {
+            'chain.id': this._chainId,
+            schema: this._schema,
+          });
+
+          logger.debug('processor_event_processed', {
+            schema: this._schema,
+            chainId: this._chainId,
+            pointer: this._formatEventPointer(event),
+            event: event.eventName,
+          });
+
+          span.setAttribute('event.status', 'processed');
+          span.setStatus({ code: SpanStatusCode.OK });
+
+          return {
             blockNumber: event.blockNumber,
             txIndex: event.txIndex,
             logIndex: event.logIndex,
             eventName: event.eventName,
-          });
-        }
-
-        await client.query('COMMIT');
-
-        logger.info('processor_batch_processed', {
-          schema: this._schema,
-          chainId: this._chainId,
-          eventsProcessed: batch.length,
-          lastPointer: this._formatEventPointer(batch[batch.length - 1]!),
-        });
-
-        endTimer();
-        return results;
-      } catch (error) {
-        await client.query('ROLLBACK');
-
-        logger.warn('processor_batch_failed_fallback_to_individual', {
-          schema: this._schema,
-          chainId: this._chainId,
-          batchSize: events.length,
-          firstPointer: events.length > 0 ? this._formatEventPointer(events[0]!) : 'unknown',
-          lastPointer:
-            events.length > 0 ? this._formatEventPointer(events[events.length - 1]!) : 'unknown',
-          error: this._extractErrorMessage(error),
-        });
-
-        const fallbackResults: ProcessResult[] = [];
-        for (const event of events) {
-          const result = await this._processEvent(event);
-          if (result) {
-            fallbackResults.push(result);
+          };
+        } catch (error) {
+          await client.query('ROLLBACK');
+          if (isTransientDbError(error)) {
+            throw error;
           }
+          await this._handleProcessingFailure(event, error);
+          span.setAttribute('event.status', 'failed');
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          if (error instanceof Error) {
+            span.recordException(error);
+          }
+          return null;
+        } finally {
+          client.release();
+          endTimer();
         }
-
-        endTimer();
-        return fallbackResults;
-      } finally {
-        client.release();
-      }
-    });
-  }
-
-  /**
-   * Processes specific event (no retry logic).
-   * Returns null if processing fails and marks event as failed immediately.
-   */
-  private async _processEvent(event: DbEvent): Promise<ProcessResult | null> {
-    return withDbRetry(async () => {
-      const endTimer = logger.startTimer('event_processing');
-      const client = await this._pool.connect();
-
-      try {
-        await client.query('BEGIN');
-
-        const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
-        const handlerEvent = this._toHandlerEvent(event);
-        const context = this._buildHandlerContext(client);
-
-        logger.info('handler_executing', {
-          schema: this._schema,
-          chainId: this._chainId,
-          eventName: event.eventName,
-          handler: handler.name,
-          pointer: this._formatEventPointer(event),
-        });
-
-        await handler(handlerEvent, context);
-
-        logger.info('handler_completed', {
-          schema: this._schema,
-          chainId: this._chainId,
-          eventName: event.eventName,
-          handler: handler.name,
-          pointer: this._formatEventPointer(event),
-        });
-
-        await this._eventsRepo.markEventProcessed(
-          client,
-          event.blockNumber,
-          event.txIndex,
-          event.logIndex,
-        );
-
-        await client.query('COMMIT');
-
-        logger.debug('processor_event_processed', {
-          schema: this._schema,
-          chainId: this._chainId,
-          pointer: this._formatEventPointer(event),
-          event: event.eventName,
-        });
-
-        return {
-          blockNumber: event.blockNumber,
-          txIndex: event.txIndex,
-          logIndex: event.logIndex,
-          eventName: event.eventName,
-        };
-      } catch (error) {
-        await client.query('ROLLBACK');
-        if (isTransientDbError(error)) {
-          throw error;
-        }
-        await this._handleProcessingFailure(event, error);
-        return null;
-      } finally {
-        client.release();
-        endTimer();
-      }
-    });
+      });
+    } finally {
+      span.end();
+    }
   }
 
   /**
@@ -382,6 +451,11 @@ export class EventProcessor {
       );
 
       await client.query('COMMIT');
+
+      eventsFailedCounter.add(1, {
+        'chain.id': this._chainId,
+        schema: this._schema,
+      });
 
       logger.error('processor_event_failed', {
         schema: this._schema,

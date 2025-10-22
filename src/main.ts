@@ -1,9 +1,12 @@
+import { initTelemetry } from './telemetry.js';
 import { config, runtimeConfigSchema } from './config.js';
 import { logger } from './logger.js';
 import { loadChainConfig } from './chain-configs/loadChainConfig.js';
 import { logRuntimeConfig } from './utils/logRuntimeConfig.js';
 import { createIndexer } from './core/Indexer.js';
 import { createHealthServer } from './health.js';
+
+initTelemetry();
 
 logger.setMinLevel(config.logging.level);
 
@@ -47,8 +50,8 @@ const shutdown = async (signal: string): Promise<void> => {
 
   logger.info('shutdown_initiated', { signal });
   try {
-    // Stop indexer loop.
-    indexer.stop();
+    // Stop indexer loop and wait for it to finish.
+    await indexer.stop();
 
     // Close health server.
     await new Promise<void>((resolve) => {

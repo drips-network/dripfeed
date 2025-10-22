@@ -1,4 +1,5 @@
 import { Pool, types } from 'pg';
+import { createPublicClient, http, type Chain } from 'viem';
 
 import { config } from '../src/config.js';
 import { loadChainConfig } from '../src/chain-configs/loadChainConfig.js';
@@ -7,7 +8,6 @@ import { ReorgDetector } from '../src/core/ReorgDetector.js';
 import { CursorRepository } from '../src/repositories/CursorRepository.js';
 import { EventRepository } from '../src/repositories/EventsRepository.js';
 import { BlockHashesRepository } from '../src/repositories/BlockHashesRepository.js';
-import { createPublicClient, http, type Chain } from 'viem';
 
 types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
 
