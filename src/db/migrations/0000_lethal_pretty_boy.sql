@@ -196,6 +196,37 @@ CREATE TABLE "splits_receivers" (
 	CONSTRAINT "splits_receivers_sender_account_id_receiver_account_id_relationship_type_unique" UNIQUE("sender_account_id","receiver_account_id","relationship_type")
 );
 --> statement-breakpoint
+CREATE TABLE "squeezed_streams_events" (
+	"account_id" text NOT NULL,
+	"erc20" text NOT NULL,
+	"sender_id" text NOT NULL,
+	"amount" text NOT NULL,
+	"streams_history_hashes" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "squeezed_streams_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
+CREATE TABLE "streams_set_events" (
+	"account_id" text NOT NULL,
+	"erc20" text NOT NULL,
+	"receivers_hash" text NOT NULL,
+	"streams_history_hash" text NOT NULL,
+	"balance" text NOT NULL,
+	"max_end" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "streams_set_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE TABLE "sub_lists" (
 	"account_id" text PRIMARY KEY NOT NULL,
 	"is_valid" boolean NOT NULL,
@@ -245,6 +276,8 @@ CREATE INDEX "idx_splits_receivers_receiver_sender" ON "splits_receivers" USING 
 CREATE INDEX "idx_splits_receivers_sender_receiver" ON "splits_receivers" USING btree ("sender_account_id","receiver_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_sender" ON "splits_receivers" USING btree ("sender_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_event_pointer" ON "splits_receivers" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_streams_set_events_receivers_hash" ON "streams_set_events" USING btree ("receivers_hash");--> statement-breakpoint
+CREATE INDEX "idx_streams_set_events_account_id" ON "streams_set_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_parent" ON "sub_lists" USING btree ("parent_account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_root" ON "sub_lists" USING btree ("root_account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_event_pointer" ON "sub_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");
