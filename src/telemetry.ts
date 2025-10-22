@@ -74,12 +74,12 @@ export function initTelemetry(): void {
   const requiredEnvVarsSet = (endpoint !== undefined || debugMode) && serviceName !== undefined;
 
   if (!requiredEnvVarsSet) {
-    console.error('⚠️  TELEMETRY DISABLED: Missing required environment variables');
-    console.error('    Required: OTEL_SERVICE_NAME');
-    console.error(
+    console.warn('⚠️  TELEMETRY DISABLED: Missing required environment variables');
+    console.warn('    Required: OTEL_SERVICE_NAME');
+    console.warn(
       '    Required: OTEL_EXPORTER_OTLP_ENDPOINT (or set OTEL_DEBUG=true for local testing)',
     );
-    console.error('    Production observability will not be available!');
+    console.warn('    Production observability will not be available!');
     return;
   }
 
