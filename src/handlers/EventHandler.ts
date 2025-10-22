@@ -9,6 +9,7 @@ import type { SubListsRepository } from '../repositories/SubListsRepository.js';
 import type { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
 import type { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import type { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
+import type { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { Contracts } from '../services/Contracts.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -56,6 +57,7 @@ export type HandlerContext = {
   readonly givenEventsRepo: GivenEventsRepository;
   readonly splitEventsRepo: SplitEventsRepository;
   readonly squeezedStreamsEventsRepo: SqueezedStreamsEventsRepository;
+  readonly streamsSetEventsRepo: StreamsSetEventsRepository;
   readonly metadataService: MetadataService;
   readonly contracts: Contracts;
   readonly cacheInvalidationService: CacheInvalidationService;

@@ -457,3 +457,30 @@ export const squeezedStreamsEvents = pgTable(
   },
   (table) => [unique().on(table.transaction_hash, table.log_index)],
 );
+
+// Streams set events table.
+export const streamsSetEvents = pgTable(
+  'streams_set_events',
+  {
+    account_id: text('account_id').notNull(),
+    erc20: text('erc20').notNull(),
+    receivers_hash: text('receivers_hash').notNull(),
+    streams_history_hash: text('streams_history_hash').notNull(),
+    balance: text('balance').notNull(),
+    max_end: text('max_end').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_streams_set_events_receivers_hash').on(table.receivers_hash),
+    index('idx_streams_set_events_account_id').on(table.account_id),
+  ],
+);

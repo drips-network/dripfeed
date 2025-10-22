@@ -15,6 +15,7 @@ import { SubListsRepository } from '../repositories/SubListsRepository.js';
 import { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
 import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
+import { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -194,6 +195,7 @@ export class EventProcessor {
       givenEventsRepo: new GivenEventsRepository(client, this._schema),
       splitEventsRepo: new SplitEventsRepository(client, this._schema),
       squeezedStreamsEventsRepo: new SqueezedStreamsEventsRepository(client, this._schema),
+      streamsSetEventsRepo: new StreamsSetEventsRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,
