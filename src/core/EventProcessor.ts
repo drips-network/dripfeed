@@ -152,6 +152,29 @@ export class EventProcessor {
     });
   }
 
+  private async _executeHandler(event: DbEvent, context: HandlerContext): Promise<void> {
+    const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
+    const handlerEvent = this._toHandlerEvent(event);
+
+    logger.info('handler_executing', {
+      schema: this._schema,
+      chainId: this._chainId,
+      eventName: event.eventName,
+      handler: handler.name,
+      pointer: this._formatEventPointer(event),
+    });
+
+    await handler(handlerEvent, context);
+
+    logger.info('handler_completed', {
+      schema: this._schema,
+      chainId: this._chainId,
+      eventName: event.eventName,
+      handler: handler.name,
+      pointer: this._formatEventPointer(event),
+    });
+  }
+
   /**
    * Builds handler context from database client.
    */
@@ -222,26 +245,7 @@ export class EventProcessor {
           const context = this._buildHandlerContext(client);
 
           for (const event of batch) {
-            const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
-            const handlerEvent = this._toHandlerEvent(event);
-
-            logger.info('handler_executing', {
-              schema: this._schema,
-              chainId: this._chainId,
-              eventName: event.eventName,
-              handler: handler.name,
-              pointer: this._formatEventPointer(event),
-            });
-
-            await handler(handlerEvent, context);
-
-            logger.info('handler_completed', {
-              schema: this._schema,
-              chainId: this._chainId,
-              eventName: event.eventName,
-              handler: handler.name,
-              pointer: this._formatEventPointer(event),
-            });
+            await this._executeHandler(event, context);
 
             await this._eventsRepo.markEventProcessed(
               client,
@@ -336,27 +340,9 @@ export class EventProcessor {
         try {
           await client.query('BEGIN');
 
-          const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
-          const handlerEvent = this._toHandlerEvent(event);
           const context = this._buildHandlerContext(client);
 
-          logger.info('handler_executing', {
-            schema: this._schema,
-            chainId: this._chainId,
-            eventName: event.eventName,
-            handler: handler.name,
-            pointer: this._formatEventPointer(event),
-          });
-
-          await handler(handlerEvent, context);
-
-          logger.info('handler_completed', {
-            schema: this._schema,
-            chainId: this._chainId,
-            eventName: event.eventName,
-            handler: handler.name,
-            pointer: this._formatEventPointer(event),
-          });
+          await this._executeHandler(event, context);
 
           await this._eventsRepo.markEventProcessed(
             client,
