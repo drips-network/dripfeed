@@ -124,7 +124,24 @@ export class MetadataService {
     }
   }
 
+  private _validateCid(cId: string): void {
+    // IPFS CIDv0: Qm + 44 base58 characters (46 total).
+    const cidV0Pattern = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
+    // IPFS CIDv1: b + base32 characters.
+    const cidV1Pattern = /^b[a-z2-7]{58,}$/;
+
+    if (!cidV0Pattern.test(cId) && !cidV1Pattern.test(cId)) {
+      throw new Error(`Invalid IPFS CID format: ${cId}`);
+    }
+
+    // Additional check: prevent directory traversal.
+    if (cId.includes('..') || cId.includes('/') || cId.includes('\\')) {
+      throw new Error(`CID contains invalid characters: ${cId}`);
+    }
+  }
+
   private async _fetchIpfsFile(cId: string): Promise<Response> {
+    this._validateCid(cId);
     const url = `${this._gatewayUrl}/ipfs/${cId}`;
     logger.info('fetching_ipfs_file', { cId, url });
 
