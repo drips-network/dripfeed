@@ -13,7 +13,7 @@ const { logRuntimeConfig } = await import('./utils/logRuntimeConfig.js');
 const { createIndexer } = await import('./core/Indexer.js');
 const { createHealthServer } = await import('./health.js');
 
-logger.setMinLevel(config.logging.level);
+logger.setPrettyFormat(config.logging.pretty).setMinLevel(config.logging.level);
 
 const chainConfig = loadChainConfig(config.network);
 
