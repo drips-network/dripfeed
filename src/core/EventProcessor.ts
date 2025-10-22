@@ -14,6 +14,7 @@ import { SplitsRepository } from '../repositories/SplitsRepository.js';
 import { SubListsRepository } from '../repositories/SubListsRepository.js';
 import { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
 import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
+import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -192,6 +193,7 @@ export class EventProcessor {
       pendingNftTransfersRepo: new PendingNftTransfersRepository(client, this._schema),
       givenEventsRepo: new GivenEventsRepository(client, this._schema),
       splitEventsRepo: new SplitEventsRepository(client, this._schema),
+      squeezedStreamsEventsRepo: new SqueezedStreamsEventsRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,

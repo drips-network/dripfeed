@@ -6,6 +6,8 @@ import {
   validateIdentifier,
 } from '../utils/sqlValidation.js';
 
+// TODO: Consider an architecture that guides/enforces Repositories these replayable ops.
+
 /**
  * Insert a row, or update **all provided columns** when a conflict occurs.
  *
