@@ -3,9 +3,11 @@ import type { EcosystemsRepository } from '../repositories/EcosystemsRepository.
 import type { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import type { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
 import type { ProjectsRepository } from '../repositories/ProjectsRepository.js';
+import type { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import type { SplitsRepository } from '../repositories/SplitsRepository.js';
 import type { SubListsRepository } from '../repositories/SubListsRepository.js';
 import type { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
+import type { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { Contracts } from '../services/Contracts.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -50,6 +52,8 @@ export type HandlerContext = {
   readonly subListsRepo: SubListsRepository;
   readonly deadlinesRepo: DeadlinesRepository;
   readonly pendingNftTransfersRepo: PendingNftTransfersRepository;
+  readonly givenEventsRepo: GivenEventsRepository;
+  readonly splitEventsRepo: SplitEventsRepository;
   readonly metadataService: MetadataService;
   readonly contracts: Contracts;
   readonly cacheInvalidationService: CacheInvalidationService;

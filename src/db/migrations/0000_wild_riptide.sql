@@ -95,6 +95,20 @@ CREATE TABLE "_events" (
 	CONSTRAINT "_events_chain_id_block_number_tx_index_log_index_unique" UNIQUE("chain_id","block_number","tx_index","log_index")
 );
 --> statement-breakpoint
+CREATE TABLE "given_events" (
+	"account_id" text NOT NULL,
+	"receiver" text NOT NULL,
+	"erc20" text NOT NULL,
+	"amt" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "given_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE TABLE "linked_identities" (
 	"account_id" text PRIMARY KEY NOT NULL,
 	"identity_type" "linked_identity_types" NOT NULL,
@@ -150,6 +164,20 @@ CREATE TABLE "projects" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "split_events" (
+	"account_id" text NOT NULL,
+	"receiver" text NOT NULL,
+	"erc20" text NOT NULL,
+	"amt" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "split_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE TABLE "splits_receivers" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"receiver_account_id" text NOT NULL,
@@ -198,6 +226,9 @@ CREATE INDEX "idx_events_chain_block" ON "_events" USING btree ("chain_id","bloc
 CREATE INDEX "idx_events_status" ON "_events" USING btree ("status") WHERE status != 'processed';--> statement-breakpoint
 CREATE INDEX "idx_events_signature" ON "_events" USING btree ("event_sig");--> statement-breakpoint
 CREATE INDEX "idx_events_name" ON "_events" USING btree ("event_name");--> statement-breakpoint
+CREATE INDEX "idx_given_events_account_id" ON "given_events" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "idx_given_events_receiver" ON "given_events" USING btree ("receiver");--> statement-breakpoint
+CREATE INDEX "idx_given_events_erc20" ON "given_events" USING btree ("erc20");--> statement-breakpoint
 CREATE INDEX "idx_linked_identities_owner_address" ON "linked_identities" USING btree ("owner_address");--> statement-breakpoint
 CREATE INDEX "idx_linked_identities_identity_type" ON "linked_identities" USING btree ("identity_type");--> statement-breakpoint
 CREATE INDEX "idx_linked_identities_orcid_id" ON "linked_identities" USING btree ("orcid_id");--> statement-breakpoint
@@ -208,6 +239,8 @@ CREATE INDEX "idx_projects_owner_address" ON "projects" USING btree ("owner_addr
 CREATE INDEX "idx_projects_verification_status" ON "projects" USING btree ("verification_status");--> statement-breakpoint
 CREATE INDEX "idx_projects_url" ON "projects" USING btree ("url");--> statement-breakpoint
 CREATE INDEX "idx_projects_event_pointer" ON "projects" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_split_events_receiver" ON "split_events" USING btree ("receiver");--> statement-breakpoint
+CREATE INDEX "idx_split_events_account_id_receiver" ON "split_events" USING btree ("account_id","receiver");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_receiver_sender" ON "splits_receivers" USING btree ("receiver_account_id","sender_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_sender_receiver" ON "splits_receivers" USING btree ("sender_account_id","receiver_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_sender" ON "splits_receivers" USING btree ("sender_account_id");--> statement-breakpoint

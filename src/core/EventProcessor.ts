@@ -9,9 +9,11 @@ import { EcosystemsRepository } from '../repositories/EcosystemsRepository.js';
 import { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
 import { ProjectsRepository } from '../repositories/ProjectsRepository.js';
+import { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import { SplitsRepository } from '../repositories/SplitsRepository.js';
 import { SubListsRepository } from '../repositories/SubListsRepository.js';
 import { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
+import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -188,6 +190,8 @@ export class EventProcessor {
       subListsRepo: new SubListsRepository(client, this._schema),
       deadlinesRepo: new DeadlinesRepository(client, this._schema),
       pendingNftTransfersRepo: new PendingNftTransfersRepository(client, this._schema),
+      givenEventsRepo: new GivenEventsRepository(client, this._schema),
+      splitEventsRepo: new SplitEventsRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,

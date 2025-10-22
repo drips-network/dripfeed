@@ -1,8 +1,10 @@
 import { accountMetadataEmittedHandler } from './AccountMetadataEmitted/accountMetadataEmittedHandler.js';
 import type { EventHandler } from './EventHandler.js';
+import { givenHandler } from './givenHandler.js';
 import { noOpHandler } from './noOpHandler.js';
 import { ownerUpdatedHandler } from './ownerUpdatedHandler.js';
 import { ownerUpdateRequestedHandler } from './ownerUpdateRequestedHandler.js';
+import { splitHandler } from './splitHandler.js';
 import { splitsSetHandler } from './splitsSetHandler.js';
 import { streamReceiverSeenHandler } from './streamReceiverSeenHandler.js';
 import { transferHandler } from './transferHandler.js';
@@ -19,10 +21,10 @@ import { transferHandler } from './transferHandler.js';
  * @see {@link createHandler} for creating type-safe handlers with tracking.
  */
 export const registry: Record<string, EventHandler> = {
-  Given: noOpHandler,
-  Split: noOpHandler,
+  Split: splitHandler as EventHandler,
   StreamsSet: noOpHandler,
   SqueezedStreams: noOpHandler,
+  Given: givenHandler as EventHandler,
   Transfer: transferHandler as EventHandler,
   SplitsSet: splitsSetHandler as EventHandler,
   OwnerUpdated: ownerUpdatedHandler as EventHandler,

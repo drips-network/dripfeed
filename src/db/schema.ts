@@ -384,3 +384,54 @@ export const deadlines = pgTable(
     ),
   ],
 );
+
+// Given events table.
+export const givenEvents = pgTable(
+  'given_events',
+  {
+    account_id: text('account_id').notNull(),
+    receiver: text('receiver').notNull(),
+    erc20: text('erc20').notNull(),
+    amt: text('amt').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_given_events_account_id').on(table.account_id),
+    index('idx_given_events_receiver').on(table.receiver),
+    index('idx_given_events_erc20').on(table.erc20),
+  ],
+);
+
+// Split events table.
+export const splitEvents = pgTable(
+  'split_events',
+  {
+    account_id: text('account_id').notNull(),
+    receiver: text('receiver').notNull(),
+    erc20: text('erc20').notNull(),
+    amt: text('amt').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_split_events_receiver').on(table.receiver),
+    index('idx_split_events_account_id_receiver').on(table.account_id, table.receiver),
+  ],
+);
