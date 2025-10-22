@@ -90,17 +90,12 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 (async () => {
   try {
     await indexer.start();
+    // Indexer stopped gracefully (should not happen in normal operation).
+    logger.info('indexer_stopped_unexpectedly');
+    await shutdown('NORMAL_EXIT');
   } catch (err) {
     const error = err as Error;
     logger.error('indexer_start_failed', { error: error.message, stack: error.stack });
-    process.exit(1);
-  } finally {
-    // Only cleanup if not already shutting down via signal handler.
-    if (!shutdownInProgress) {
-      healthServer.close(() => {
-        // Ignore errors during cleanup.
-      });
-      await closePool();
-    }
+    await shutdown('ERROR');
   }
 })();
