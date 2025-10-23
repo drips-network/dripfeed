@@ -3,10 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx scripts/validate-chain-configs.ts && tsx watch src/main.ts",
-    "prestart": "tsx scripts/validate-chain-configs.ts",
+    "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "prebuild": "tsx scripts/validate-chain-configs.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts",

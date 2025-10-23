@@ -1,12 +1,18 @@
-import type * as mainnet from './mainnet.js';
+import type { dripsAbi } from './abis/dripsAbi.js';
+import type { nftDriverAbi } from './abis/nftDriverAbi.js';
+import type { addressDriverAbi } from './abis/addressDriverAbi.js';
+import type { repoSubAccountDriverAbi } from './abis/repoSubAccountDriverAbi.js';
+import type { repoDeadlineDriverAbi } from './abis/repoDeadlineDriverAbi.js';
+import type { repoDriverLegacyAbi } from './abis/repoDriverLegacyAbi.js';
+import type { repoDriverAbi } from './abis/repoDriverAbi.js';
 
-// Union types for ABIs across all supported chains.
-// This file is validated at startup by scripts/validate-chain-configs.ts to ensure
-// all chain config files are properly imported and registered in the union types.
-// When adding a new chain: import it and extend the union types below.
+export type DripsAbi = typeof dripsAbi;
+export type NftDriverAbi = typeof nftDriverAbi;
+export type AddressDriverAbi = typeof addressDriverAbi;
+export type RepoSubAccountDriverAbi = typeof repoSubAccountDriverAbi;
+export type RepoDeadlineDriverAbi = typeof repoDeadlineDriverAbi;
 
-export type DripsAbi = typeof mainnet.dripsAbi;
-export type NftDriverAbi = typeof mainnet.nftDriverAbi;
-export type RepoDriverAbi = typeof mainnet.repoDriverAbi;
-export type AddressDriverAbi = typeof mainnet.addressDriverAbi;
-export type RepoSubAccountDriverAbi = typeof mainnet.repoSubAccountDriverAbi;
+// RepoDriver has two implementations:
+//   - Legacy (mainnet only): OwnerUpdateRequested without 'payer' parameter
+//   - Current (all other chains): OwnerUpdateRequested with 'payer' parameter
+export type RepoDriverAbi = typeof repoDriverLegacyAbi | typeof repoDriverAbi;

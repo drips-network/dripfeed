@@ -2,7 +2,7 @@ import { config as loadEnv } from 'dotenv';
 import { expand } from 'dotenv-expand';
 import { z } from 'zod';
 
-expand(loadEnv());
+expand(loadEnv({ quiet: true }));
 
 const configSchema = z.object({
   network: z.string().min(1),

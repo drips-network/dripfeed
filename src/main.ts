@@ -1,9 +1,5 @@
-import { config as loadEnv } from 'dotenv';
-import { expand } from 'dotenv-expand';
-
 import { initTelemetry } from './telemetry.js';
 
-expand(loadEnv());
 initTelemetry();
 
 const { config, runtimeConfigSchema } = await import('./config.js');
