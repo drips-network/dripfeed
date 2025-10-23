@@ -7,7 +7,6 @@ import {
 import { subListSplitReceiverSchema } from '../immutable-splits-driver/v1.js';
 import { repoSubAccountDriverSplitReceiverSchema } from '../common/repoSubAccountDriverSplitReceiverSchema.js';
 import { emojiAvatarSchema } from '../repo-driver/v4.js';
-import { deadlineSplitReceiverSchema, orcidSplitReceiverSchema } from '../repo-driver/v6.js';
 
 import { dripListSplitReceiverSchema } from './v2.js';
 import { nftDriverAccountMetadataSchemaV5 } from './v5.js';
@@ -24,11 +23,7 @@ const base = nftDriverAccountMetadataSchemaV5
 const ecosystemVariant = base.extend({
   type: z.literal('ecosystem'),
   recipients: z.array(
-    z.union([
-      repoSubAccountDriverSplitReceiverSchema,
-      subListSplitReceiverSchema,
-      deadlineSplitReceiverSchema, // New in v7
-    ]),
+    z.union([repoSubAccountDriverSplitReceiverSchema, subListSplitReceiverSchema]),
   ),
   color: z.string(),
   avatar: emojiAvatarSchema,
@@ -42,8 +37,6 @@ const dripListVariant = base.extend({
       subListSplitReceiverSchema,
       addressDriverSplitReceiverSchema,
       dripListSplitReceiverSchema,
-      deadlineSplitReceiverSchema, // New in v7
-      orcidSplitReceiverSchema, // New in v7
     ]),
   ),
 });

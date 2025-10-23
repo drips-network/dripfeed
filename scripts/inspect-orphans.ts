@@ -59,20 +59,32 @@ function parseArgs(): Args {
     console.log(`${COLORS.RED}Error: Missing required argument --block${COLORS.NC}`);
     console.log('');
     console.log('Usage:');
-    console.log('  npm run inspect-orphans -- --block <blockNumber> [--schema <schema>] [--chain <chainId>]');
+    console.log(
+      '  npm run inspect-orphans -- --block <blockNumber> [--schema <schema>] [--chain <chainId>]',
+    );
     console.log('');
     console.log('Description:');
-    console.log('  Scans domain tables for orphaned records created from the specified block onwards.');
-    console.log('  Orphaned records are entities without corresponding events (e.g., after a reorg or rollback).');
+    console.log(
+      '  Scans domain tables for orphaned records created from the specified block onwards.',
+    );
+    console.log(
+      '  Orphaned records are entities without corresponding events (e.g., after a reorg or rollback).',
+    );
     console.log('');
     console.log('Arguments:');
-    console.log('  --block      Required: Block number to inspect from (scans records created after this block)');
+    console.log(
+      '  --block      Required: Block number to inspect from (scans records created after this block)',
+    );
     console.log('  --schema     Optional: Database schema (default: from .env DB_SCHEMA)');
     console.log('  --chain      Optional: Chain ID (default: from .env NETWORK config)');
     console.log('');
     console.log('Examples:');
-    console.log('  npm run inspect-orphans -- --block 19500000                              # Using .env config');
-    console.log('  npm run inspect-orphans -- --block 19500000 --schema sepolia --chain 11155111  # Override schema/chain');
+    console.log(
+      '  npm run inspect-orphans -- --block 19500000                              # Using .env config',
+    );
+    console.log(
+      '  npm run inspect-orphans -- --block 19500000 --schema sepolia --chain 11155111  # Override schema/chain',
+    );
     console.log('');
     console.log('Typical workflow:');
     console.log('  1. Run rollback:   npm run rollback -- --block 19500000');
@@ -85,41 +97,54 @@ function parseArgs(): Args {
 }
 
 /**
- * Domain entity tables that can have orphaned records after a reorg.
- * These are all tables created by processing events that are NOT system tables (prefixed with _).
+ * Discovers domain entity tables that can have orphaned records after a reorg.
+ * Domain tables are all tables created by processing events that:
+ * - Have a 'created_at' column (event-driven entities)
+ * - Are not system tables (prefixed with _) except _pending_nft_transfers
+ * - Are not event log tables (suffixed with _events)
+ * - Have event pointer columns (last_event_block, last_event_tx_index, last_event_log_index)
  *
- * IMPORTANT: When adding a new domain table to the schema:
- * 1. Add it to this list with correct pkColumn and hasBlockNumber
- * 2. Run this script - it will auto-validate against the actual database schema
- * 3. If validation fails, the script will tell you exactly what's missing
+ * Auto-discovers table metadata from the database schema.
  */
-const DOMAIN_TABLES = [
-  { name: 'projects', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: 'linked_identities', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: 'drip_lists', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: 'ecosystem_main_accounts', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: 'sub_lists', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: 'splits_receivers', pkColumn: 'id', hasBlockNumber: false },
-  { name: 'deadlines', pkColumn: 'account_id', hasBlockNumber: false },
-  { name: '_pending_nft_transfers', pkColumn: 'account_id', hasBlockNumber: true },
-];
-
-/**
- * Validates that DOMAIN_TABLES covers all domain tables in the database.
- * Fails fast if any tables are missing from the list.
- *
- * Excludes event log tables (*_events) since they don't have event pointer columns
- * and are handled by ReorgDetector._deleteEventLogTables() instead.
- */
-async function validateDomainTablesCoverage(pool: Pool, schema: string): Promise<void> {
-  const result = await pool.query<{ table_name: string }>(
+async function discoverDomainTables(
+  pool: Pool,
+  schema: string,
+): Promise<Array<{ name: string; pkColumn: string; hasBlockNumber: boolean }>> {
+  const result = await pool.query<{
+    table_name: string;
+    pk_column: string;
+    has_block_number: boolean;
+  }>(
     `
-    SELECT DISTINCT t.table_name
+    SELECT DISTINCT
+      t.table_name,
+      (
+        SELECT c.column_name
+        FROM information_schema.table_constraints tc
+        INNER JOIN information_schema.constraint_column_usage c
+          ON tc.constraint_name = c.constraint_name
+          AND tc.table_schema = c.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND tc.table_schema = t.table_schema
+          AND tc.table_name = t.table_name
+        LIMIT 1
+      ) as pk_column,
+      EXISTS(
+        SELECT 1
+        FROM information_schema.columns bc
+        WHERE bc.table_schema = t.table_schema
+          AND bc.table_name = t.table_name
+          AND bc.column_name = 'block_number'
+      ) as has_block_number
     FROM information_schema.tables t
     INNER JOIN information_schema.columns c
       ON t.table_schema = c.table_schema
       AND t.table_name = c.table_name
       AND c.column_name = 'created_at'
+    INNER JOIN information_schema.columns ep
+      ON t.table_schema = ep.table_schema
+      AND t.table_name = ep.table_name
+      AND ep.column_name = 'last_event_block'
     WHERE t.table_schema = $1
       AND t.table_type = 'BASE TABLE'
       AND (
@@ -135,60 +160,27 @@ async function validateDomainTablesCoverage(pool: Pool, schema: string): Promise
     [schema],
   );
 
-  const actualTables = new Set(result.rows.map((row) => row.table_name));
-  const configuredTables = new Set(DOMAIN_TABLES.map((t) => t.name));
-
-  const missingTables = Array.from(actualTables).filter((t) => !configuredTables.has(t));
-  const extraTables = Array.from(configuredTables).filter((t) => !actualTables.has(t));
-
-  if (missingTables.length > 0 || extraTables.length > 0) {
-    console.log(`${COLORS.RED}${COLORS.BOLD}✗ DOMAIN TABLE COVERAGE VALIDATION FAILED${COLORS.NC}`);
-    console.log('');
-
-    if (missingTables.length > 0) {
-      console.log(
-        `${COLORS.RED}Missing from DOMAIN_TABLES (exist in DB but not in script):${COLORS.NC}`,
-      );
-      for (const table of missingTables) {
-        console.log(`  - ${table}`);
-      }
-      console.log('');
-    }
-
-    if (extraTables.length > 0) {
-      console.log(
-        `${COLORS.YELLOW}Extra in DOMAIN_TABLES (in script but not in DB):${COLORS.NC}`,
-      );
-      for (const table of extraTables) {
-        console.log(`  - ${table}`);
-      }
-      console.log('');
-    }
-
-    console.log(`${COLORS.YELLOW}ACTION REQUIRED:${COLORS.NC}`);
-    console.log(
-      `Update DOMAIN_TABLES in ${COLORS.BLUE}scripts/inspect-orphans.ts${COLORS.NC} to match the database schema.`,
-    );
-    console.log('');
-    throw new Error('Domain tables validation failed - coverage incomplete');
-  }
-
-  console.log(`${COLORS.GREEN}✓ Domain table coverage validated (${actualTables.size} tables)${COLORS.NC}`);
-  console.log('');
+  return result.rows.map((row) => ({
+    name: row.table_name,
+    pkColumn: row.pk_column,
+    hasBlockNumber: row.has_block_number,
+  }));
 }
+
 
 async function inspectOrphans(
   pool: Pool,
   schema: string,
   chainId: string,
   block: bigint,
+  domainTables: Array<{ name: string; pkColumn: string; hasBlockNumber: boolean }>,
 ): Promise<OrphanResult[]> {
   const results: OrphanResult[] = [];
 
   console.log(`${COLORS.BLUE}Scanning domain tables for orphaned records...${COLORS.NC}`);
   console.log('');
 
-  for (const table of DOMAIN_TABLES) {
+  for (const table of domainTables) {
     console.log(`  Checking ${COLORS.YELLOW}${table.name}${COLORS.NC}...`);
 
     // Check for records where the event pointer doesn't resolve to an existing event.
@@ -246,13 +238,21 @@ async function inspectOrphans(
 async function main(): Promise<void> {
   const args = parseArgs();
 
-  console.log(`${COLORS.BOLD}${COLORS.BLUE}╔═══════════════════════════════════════════════════════════════════╗${COLORS.NC}`);
-  console.log(`${COLORS.BOLD}${COLORS.BLUE}║                 🔍 ORPHAN INSPECTION SCRIPT 🔍                    ║${COLORS.NC}`);
-  console.log(`${COLORS.BOLD}${COLORS.BLUE}╚═══════════════════════════════════════════════════════════════════╝${COLORS.NC}`);
+  console.log(
+    `${COLORS.BOLD}${COLORS.BLUE}╔═══════════════════════════════════════════════════════════════════╗${COLORS.NC}`,
+  );
+  console.log(
+    `${COLORS.BOLD}${COLORS.BLUE}║                 🔍 ORPHAN INSPECTION SCRIPT 🔍                    ║${COLORS.NC}`,
+  );
+  console.log(
+    `${COLORS.BOLD}${COLORS.BLUE}╚═══════════════════════════════════════════════════════════════════╝${COLORS.NC}`,
+  );
   console.log('');
 
   console.log(`${COLORS.BLUE}This script identifies orphaned domain entities.${COLORS.NC}`);
-  console.log(`${COLORS.BLUE}Orphaned records are entities without corresponding events (reorgs, bugs, etc).${COLORS.NC}`);
+  console.log(
+    `${COLORS.BLUE}Orphaned records are entities without corresponding events (reorgs, bugs, etc).${COLORS.NC}`,
+  );
   console.log('');
 
   console.log(`Schema: ${COLORS.YELLOW}${args.schema}${COLORS.NC}`);
@@ -288,11 +288,15 @@ async function main(): Promise<void> {
     console.log(`${COLORS.BLUE}Current cursor position: ${currentCursor.toString()}${COLORS.NC}`);
     console.log('');
 
-    // Validate domain table coverage before inspecting.
-    await validateDomainTablesCoverage(pool, schema);
+    // Discover domain tables from database schema.
+    const domainTables = await discoverDomainTables(pool, schema);
+    console.log(
+      `${COLORS.GREEN}✓ Discovered ${domainTables.length} domain tables from schema${COLORS.NC}`,
+    );
+    console.log('');
 
     // Inspect orphans.
-    const results = await inspectOrphans(pool, schema, args.chainId, args.block);
+    const results = await inspectOrphans(pool, schema, args.chainId, args.block, domainTables);
 
     // Display results.
     console.log('');
@@ -372,7 +376,9 @@ async function main(): Promise<void> {
         '  2. Check if corresponding events exist in _events table that created these records',
       );
       console.log('  3. If confirmed orphaned, consider manual cleanup or re-running recovery');
-      console.log('  4. For future reorgs, ensure AUTO_HANDLE_REORGS is enabled or manual recovery is run promptly');
+      console.log(
+        '  4. For future reorgs, ensure AUTO_HANDLE_REORGS is enabled or manual recovery is run promptly',
+      );
     }
 
     console.log('');

@@ -18,7 +18,6 @@ const upsertSubListInputSchema = subListSchema.pick({
   parent_account_type: true,
   root_account_id: true,
   root_account_type: true,
-  is_visible: true,
   last_processed_ipfs_hash: true,
 });
 
@@ -71,7 +70,6 @@ export class SubListsRepository {
       parent_account_type: data.parent_account_type,
       root_account_id: data.root_account_id,
       root_account_type: data.root_account_type,
-      is_visible: data.is_visible,
       last_processed_ipfs_hash: data.last_processed_ipfs_hash,
       last_event_block: eventPointer.last_event_block,
       last_event_tx_index: eventPointer.last_event_tx_index,
@@ -87,7 +85,6 @@ export class SubListsRepository {
       | 'parent_account_type'
       | 'root_account_id'
       | 'root_account_type'
-      | 'is_visible'
       | 'last_processed_ipfs_hash'
       | 'last_event_block'
       | 'last_event_tx_index'
@@ -104,7 +101,6 @@ export class SubListsRepository {
         'parent_account_type',
         'root_account_id',
         'root_account_type',
-        'is_visible',
         'last_processed_ipfs_hash',
         'last_event_block',
         'last_event_tx_index',

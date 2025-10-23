@@ -7,7 +7,8 @@ import type { DripListMetadata } from '../../services/MetadataService.js';
 import { verifyProjectSources } from '../../utils/verifyProjectSources.js';
 import { logger } from '../../logger.js';
 import { mapToAccountType } from '../../utils/mapToAccountType.js';
-import type { AccountType } from '../../utils/splitRules.js';
+import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
+import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 
 type DripListReceiver = Extract<
@@ -38,7 +39,13 @@ export async function handleDripListMetadata(
 
   await verifyGitHubProjectSources(splits, ctx);
   await updateDripList(metadata, cId, dripListId, blockNumber, ctx, eventPointer);
-  await updateDripListSplits(dripListId.toString(), blockTimestamp, splits, ctx.splitsRepo, eventPointer);
+  await updateDripListSplits(
+    dripListId.toString(),
+    blockTimestamp,
+    splits,
+    ctx.splitsRepo,
+    eventPointer,
+  );
 }
 
 function extractReceivers(metadata: DripListMetadata): Receiver[] {
@@ -154,6 +161,8 @@ async function updateDripListSplits(
       );
     }
 
+    assertValidReceiverType('drip_list', receiverAccountType);
+
     splits.push({
       sender_account_id: accountId,
       sender_account_type: 'drip_list',
@@ -165,35 +174,11 @@ async function updateDripListSplits(
     });
   }
 
-  const { newSplits } = await splitsRepository.replaceSplitsForSender(accountId, splits, eventPointer);
+  const { newSplits } = await splitsRepository.replaceSplitsForSender(
+    accountId,
+    splits,
+    eventPointer,
+  );
 
   logger.info('drip_list_splits_updated', { accountId, splits: newSplits });
-}
-
-function getReceiverTypeFromMetadata(receiver: Receiver): AccountType {
-  if ('type' in receiver) {
-    switch (receiver.type) {
-      case 'address':
-        return 'address';
-      case 'repoDriver':
-        return 'project';
-      case 'dripList':
-        return 'drip_list';
-      case 'orcid':
-        return 'linked_identity';
-      case 'deadline':
-        return 'deadline';
-      default:
-        throw new Error(`Unknown receiver type: ${(receiver as any).type}`); // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-  }
-
-  if ('source' in receiver) {
-    if (receiver.source.forge === 'orcid') {
-      return 'linked_identity';
-    }
-    return 'project';
-  }
-
-  return 'address';
 }

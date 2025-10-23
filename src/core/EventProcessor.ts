@@ -12,7 +12,6 @@ import { ProjectsRepository } from '../repositories/ProjectsRepository.js';
 import { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import { SplitsRepository } from '../repositories/SplitsRepository.js';
 import { SubListsRepository } from '../repositories/SubListsRepository.js';
-import { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
 import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
@@ -192,7 +191,6 @@ export class EventProcessor {
       dripListsRepo: new DripListsRepository(client, this._schema),
       ecosystemsRepo: new EcosystemsRepository(client, this._schema),
       subListsRepo: new SubListsRepository(client, this._schema),
-      deadlinesRepo: new DeadlinesRepository(client, this._schema),
       pendingNftTransfersRepo: new PendingNftTransfersRepository(client, this._schema),
       givenEventsRepo: new GivenEventsRepository(client, this._schema),
       splitEventsRepo: new SplitEventsRepository(client, this._schema),

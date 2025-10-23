@@ -6,7 +6,6 @@ import type { ProjectsRepository } from '../repositories/ProjectsRepository.js';
 import type { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import type { SplitsRepository } from '../repositories/SplitsRepository.js';
 import type { SubListsRepository } from '../repositories/SubListsRepository.js';
-import type { DeadlinesRepository } from '../repositories/DeadlinesRepository.js';
 import type { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import type { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import type { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
@@ -54,7 +53,6 @@ export type HandlerContext = {
   readonly dripListsRepo: DripListsRepository;
   readonly ecosystemsRepo: EcosystemsRepository;
   readonly subListsRepo: SubListsRepository;
-  readonly deadlinesRepo: DeadlinesRepository;
   readonly pendingNftTransfersRepo: PendingNftTransfersRepository;
   readonly givenEventsRepo: GivenEventsRepository;
   readonly splitEventsRepo: SplitEventsRepository;

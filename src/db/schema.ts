@@ -29,7 +29,6 @@ export const accountTypeEnum = pgEnum('account_type', [
   'linked_identity',
   'ecosystem_main_account',
   'sub_list',
-  'deadline',
 ]);
 export const relationshipTypeEnum = pgEnum('relationship_type', [
   'project_maintainer',
@@ -259,7 +258,6 @@ export const subLists = pgTable(
     parent_account_type: accountTypeEnum('parent_account_type').notNull(),
     root_account_id: text('root_account_id').notNull(),
     root_account_type: accountTypeEnum('root_account_type').notNull(),
-    is_visible: boolean('is_visible').notNull(),
     last_processed_ipfs_hash: text('last_processed_ipfs_hash').notNull(),
     last_event_block: bigint('last_event_block', { mode: 'bigint' }),
     last_event_tx_index: integer('last_event_tx_index'),
@@ -345,39 +343,6 @@ export const splitsReceivers = pgTable(
     ),
     index('idx_splits_receivers_sender').on(table.sender_account_id),
     index('idx_splits_receivers_event_pointer').on(
-      table.last_event_block,
-      table.last_event_tx_index,
-      table.last_event_log_index,
-    ),
-  ],
-);
-
-// Deadlines table.
-export const deadlines = pgTable(
-  'deadlines',
-  {
-    account_id: text('account_id').primaryKey(),
-    receiver_account_id: text('receiver_account_id').notNull(),
-    receiver_account_type: accountTypeEnum('receiver_account_type').notNull(),
-    claimable_project_id: text('claimable_project_id').notNull(),
-    deadline: timestamp('deadline', { withTimezone: true }).notNull(),
-    refund_account_id: text('refund_account_id').notNull(),
-    refund_account_type: accountTypeEnum('refund_account_type').notNull(),
-    last_event_block: bigint('last_event_block', { mode: 'bigint' }),
-    last_event_tx_index: integer('last_event_tx_index'),
-    last_event_log_index: integer('last_event_log_index'),
-    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    index('idx_deadlines_receiver_account_id').on(table.receiver_account_id),
-    index('idx_deadlines_claimable_project_id').on(table.claimable_project_id),
-    index('idx_deadlines_refund_account_id').on(table.refund_account_id),
-    index('idx_deadlines_deadline').on(table.deadline),
-    index('idx_deadlines_event_pointer').on(
       table.last_event_block,
       table.last_event_tx_index,
       table.last_event_log_index,

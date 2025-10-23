@@ -8,6 +8,7 @@ import { mapToAccountType } from '../../utils/mapToAccountType.js';
 import type { HandlerContext } from '../EventHandler.js';
 import { logger } from '../../logger.js';
 import type { EventPointer } from '../../repositories/types.js';
+import { assertValidReceiverType } from '../../utils/splitRules.js';
 
 export async function handleProjectMetadata(
   projectId: string,
@@ -75,10 +76,13 @@ async function updateProject(
     updates.emoji = metadata.emoji;
   }
 
-  const result = await ctx.projectsRepo.updateProject({
-    account_id: projectId,
-    ...updates,
-  }, eventPointer);
+  const result = await ctx.projectsRepo.updateProject(
+    {
+      account_id: projectId,
+      ...updates,
+    },
+    eventPointer,
+  );
 
   if (!result.success) {
     throw new Error(`Project not found for account_id: ${projectId}`);
@@ -111,64 +115,24 @@ async function updateProjectSplits(
   for (const dependency of metadata.splits.dependencies) {
     const receiverAccountType = mapToAccountType(dependency.accountId);
 
-    if (receiverAccountType === 'address') {
-      splits.push({
-        sender_account_id: projectId,
-        sender_account_type: 'project',
-        receiver_account_id: dependency.accountId,
-        receiver_account_type: 'address',
-        relationship_type: 'project_dependency',
-        weight: dependency.weight,
-        block_timestamp: blockTimestamp,
-      });
-    } else if (receiverAccountType === 'project') {
-      splits.push({
-        sender_account_id: projectId,
-        sender_account_type: 'project',
-        receiver_account_id: dependency.accountId,
-        receiver_account_type: 'project',
-        relationship_type: 'project_dependency',
-        weight: dependency.weight,
-        block_timestamp: blockTimestamp,
-      });
-    } else if (receiverAccountType === 'drip_list') {
-      splits.push({
-        sender_account_id: projectId,
-        sender_account_type: 'project',
-        receiver_account_id: dependency.accountId,
-        receiver_account_type: 'drip_list',
-        relationship_type: 'project_dependency',
-        weight: dependency.weight,
-        block_timestamp: blockTimestamp,
-      });
-    } else if (receiverAccountType === 'linked_identity') {
-      splits.push({
-        sender_account_id: projectId,
-        sender_account_type: 'project',
-        receiver_account_id: dependency.accountId,
-        receiver_account_type: 'linked_identity',
-        relationship_type: 'project_dependency',
-        weight: dependency.weight,
-        block_timestamp: blockTimestamp,
-      });
-    } else if (receiverAccountType === 'deadline') {
-      splits.push({
-        sender_account_id: projectId,
-        sender_account_type: 'project',
-        receiver_account_id: dependency.accountId,
-        receiver_account_type: 'deadline',
-        relationship_type: 'project_dependency',
-        weight: dependency.weight,
-        block_timestamp: blockTimestamp,
-      });
-    } else {
-      throw new Error(
-        `Invalid receiver type for project dependency: ${receiverAccountType} (account ${dependency.accountId})`,
-      );
-    }
+    assertValidReceiverType('project', receiverAccountType);
+
+    splits.push({
+      sender_account_id: projectId,
+      sender_account_type: 'project',
+      receiver_account_id: dependency.accountId,
+      receiver_account_type: receiverAccountType,
+      relationship_type: 'project_dependency',
+      weight: dependency.weight,
+      block_timestamp: blockTimestamp,
+    });
   }
 
-  const { newSplits } = await splitsRepository.replaceSplitsForSender(projectId, splits, eventPointer);
+  const { newSplits } = await splitsRepository.replaceSplitsForSender(
+    projectId,
+    splits,
+    eventPointer,
+  );
 
   logger.info('project_splits_updated', { projectId, splits: newSplits });
 }

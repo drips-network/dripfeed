@@ -1,4 +1,4 @@
-CREATE TYPE account_type AS ENUM('project', 'address', 'drip_list', 'linked_identity', 'ecosystem_main_account', 'sub_list', 'deadline');--> statement-breakpoint
+CREATE TYPE account_type AS ENUM('project', 'address', 'drip_list', 'linked_identity', 'ecosystem_main_account', 'sub_list');--> statement-breakpoint
 CREATE TYPE status AS ENUM('pending', 'processed', 'failed');--> statement-breakpoint
 CREATE TYPE forges AS ENUM('github', 'gitlab');--> statement-breakpoint
 CREATE TYPE linked_identity_types AS ENUM('orcid');--> statement-breakpoint
@@ -29,21 +29,6 @@ CREATE TABLE "_block_hashes" (
 CREATE TABLE "_cursor" (
 	"chain_id" text PRIMARY KEY NOT NULL,
 	"fetched_to_block" bigint NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "deadlines" (
-	"account_id" text PRIMARY KEY NOT NULL,
-	"receiver_account_id" text NOT NULL,
-	"receiver_account_type" "account_type" NOT NULL,
-	"claimable_project_id" text NOT NULL,
-	"deadline" timestamp with time zone NOT NULL,
-	"refund_account_id" text NOT NULL,
-	"refund_account_type" "account_type" NOT NULL,
-	"last_event_block" bigint,
-	"last_event_tx_index" integer,
-	"last_event_log_index" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -260,7 +245,6 @@ CREATE TABLE "sub_lists" (
 	"parent_account_type" "account_type" NOT NULL,
 	"root_account_id" text NOT NULL,
 	"root_account_type" "account_type" NOT NULL,
-	"is_visible" boolean NOT NULL,
 	"last_processed_ipfs_hash" text NOT NULL,
 	"last_event_block" bigint,
 	"last_event_tx_index" integer,
@@ -271,11 +255,6 @@ CREATE TABLE "sub_lists" (
 --> statement-breakpoint
 CREATE INDEX "idx_account_metadata_emitted_events_account_id" ON "account_metadata_emitted_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_block_hashes_lookup" ON "_block_hashes" USING btree ("chain_id","block_number" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "idx_deadlines_receiver_account_id" ON "deadlines" USING btree ("receiver_account_id");--> statement-breakpoint
-CREATE INDEX "idx_deadlines_claimable_project_id" ON "deadlines" USING btree ("claimable_project_id");--> statement-breakpoint
-CREATE INDEX "idx_deadlines_refund_account_id" ON "deadlines" USING btree ("refund_account_id");--> statement-breakpoint
-CREATE INDEX "idx_deadlines_deadline" ON "deadlines" USING btree ("deadline");--> statement-breakpoint
-CREATE INDEX "idx_deadlines_event_pointer" ON "deadlines" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
 CREATE INDEX "idx_drip_lists_owner_address" ON "drip_lists" USING btree ("owner_address");--> statement-breakpoint
 CREATE INDEX "idx_drip_lists_event_pointer" ON "drip_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
 CREATE INDEX "idx_ecosystem_main_accounts_owner_address" ON "ecosystem_main_accounts" USING btree ("owner_address");--> statement-breakpoint

@@ -4,6 +4,7 @@ import type { z } from 'zod';
 
 import { splitsReceivers } from '../db/schema.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
+import type { ValidSplitCombination } from '../utils/splitRules.js';
 
 import type { EventPointer } from './types.js';
 
@@ -21,7 +22,13 @@ const splitReceiverInputSchema = splitReceiverSchema
   })
   .partial({ splits_to_repo_driver_sub_account: true });
 
-export type SplitReceiverInput = z.infer<typeof splitReceiverInputSchema>;
+type BaseSplitReceiverInput = z.infer<typeof splitReceiverInputSchema>;
+
+export type SplitReceiverInput = Omit<
+  BaseSplitReceiverInput,
+  'sender_account_type' | 'receiver_account_type' | 'relationship_type'
+> &
+  ValidSplitCombination;
 
 export class SplitsRepository {
   constructor(

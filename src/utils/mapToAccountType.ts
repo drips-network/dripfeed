@@ -21,11 +21,8 @@ export function mapToAccountType(accountId: string): AccountType {
     case 'immutableSplitsDriver':
       return 'sub_list';
     case 'repoDriver':
-      return 'project';
     case 'repoSubAccountDriver':
-      return 'sub_list';
-    case 'repoDeadlineDriver':
-      return 'deadline';
+      return 'project';
     default:
       throw new Error(`Unknown contract name for account ID ${accountId}: ${contractName}`);
   }

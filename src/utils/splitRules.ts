@@ -8,7 +8,6 @@ export const ACCOUNT_TYPES = [
   'linked_identity',
   'ecosystem_main_account',
   'sub_list',
-  'deadline',
 ] as const;
 
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -59,11 +58,6 @@ export const SPLIT_RULES = Object.freeze([
     receiver_account_type: 'linked_identity',
     relationship_type: 'project_dependency',
   },
-  {
-    sender_account_type: 'project',
-    receiver_account_type: 'deadline',
-    relationship_type: 'project_dependency',
-  },
 
   // Drip List Rules
   {
@@ -86,26 +80,11 @@ export const SPLIT_RULES = Object.freeze([
     receiver_account_type: 'linked_identity',
     relationship_type: 'drip_list_receiver',
   },
-  {
-    sender_account_type: 'drip_list',
-    receiver_account_type: 'deadline',
-    relationship_type: 'drip_list_receiver',
-  },
 
   // Ecosystem Main Account Rules
   {
     sender_account_type: 'ecosystem_main_account',
     receiver_account_type: 'project',
-    relationship_type: 'ecosystem_receiver',
-  },
-  {
-    sender_account_type: 'ecosystem_main_account',
-    receiver_account_type: 'linked_identity',
-    relationship_type: 'ecosystem_receiver',
-  },
-  {
-    sender_account_type: 'ecosystem_main_account',
-    receiver_account_type: 'deadline',
     relationship_type: 'ecosystem_receiver',
   },
   {
@@ -132,11 +111,6 @@ export const SPLIT_RULES = Object.freeze([
   },
   {
     sender_account_type: 'sub_list',
-    receiver_account_type: 'deadline',
-    relationship_type: 'sub_list_link',
-  },
-  {
-    sender_account_type: 'sub_list',
     receiver_account_type: 'sub_list',
     relationship_type: 'sub_list_link',
   },
@@ -153,3 +127,33 @@ export const SPLIT_RULES = Object.freeze([
     relationship_type: 'identity_owner',
   },
 ] as const);
+
+export type ValidSplitCombination = (typeof SPLIT_RULES)[number];
+
+export type AllowedReceiverTypes<TSender extends AccountType> = Extract<
+  ValidSplitCombination,
+  { sender_account_type: TSender }
+>['receiver_account_type'];
+
+/**
+ * Type guard to validate and narrow receiver type for a given sender.
+ */
+export function assertValidReceiverType<TSender extends AccountType>(
+  senderType: TSender,
+  receiverType: AccountType,
+): asserts receiverType is AllowedReceiverTypes<TSender> {
+  const validCombination = SPLIT_RULES.find(
+    (rule) =>
+      rule.sender_account_type === senderType && rule.receiver_account_type === receiverType,
+  );
+
+  if (!validCombination) {
+    const allowedTypes = SPLIT_RULES.filter((rule) => rule.sender_account_type === senderType)
+      .map((rule) => rule.receiver_account_type)
+      .join(', ');
+
+    throw new Error(
+      `Invalid receiver type "${receiverType}" for sender type "${senderType}". Allowed types: ${allowedTypes}`,
+    );
+  }
+}

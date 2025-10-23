@@ -7,7 +7,8 @@ import type { SubListMetadata } from '../../services/MetadataService.js';
 import { logger } from '../../logger.js';
 import { verifyProjectSources } from '../../utils/verifyProjectSources.js';
 import { mapToAccountType } from '../../utils/mapToAccountType.js';
-import type { AccountType } from '../../utils/splitRules.js';
+import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
+import { assertValidReceiverType, type AccountType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 
 type SubListRecipient = SubListMetadata['recipients'][number];
@@ -86,22 +87,21 @@ async function updateSubList(
   ctx: HandlerContext,
   eventPointer: EventPointer,
 ): Promise<void> {
-  const isVisible =
-    'isVisible' in metadata && metadata.isVisible !== undefined ? metadata.isVisible : true;
-
   const parentAccountType = getAccountTypeFromMetadata(metadata.parent.type);
   const rootAccountType = getAccountTypeFromMetadata(metadata.root.type);
 
-  const subList = await ctx.subListsRepo.upsertSubList({
-    account_id: accountId,
-    is_valid: false,
-    parent_account_id: metadata.parent.accountId,
-    parent_account_type: parentAccountType,
-    root_account_id: metadata.root.accountId,
-    root_account_type: rootAccountType,
-    is_visible: isVisible,
-    last_processed_ipfs_hash: cId,
-  }, eventPointer);
+  const subList = await ctx.subListsRepo.upsertSubList(
+    {
+      account_id: accountId,
+      is_valid: false,
+      parent_account_id: metadata.parent.accountId,
+      parent_account_type: parentAccountType,
+      root_account_id: metadata.root.accountId,
+      root_account_type: rootAccountType,
+      last_processed_ipfs_hash: cId,
+    },
+    eventPointer,
+  );
 
   logger.info('sub_list_updated', { subList });
 }
@@ -125,51 +125,38 @@ async function updateSubListSplits(
       );
     }
 
-    const relationshipType =
-      receiverAccountType === 'sub_list' ? 'sub_list_link' : 'sub_list_receiver';
+    assertValidReceiverType('sub_list', receiverAccountType);
 
-    splits.push({
-      sender_account_id: accountId,
-      sender_account_type: 'sub_list',
-      receiver_account_id: recipient.accountId,
-      receiver_account_type: receiverAccountType,
-      relationship_type: relationshipType,
-      weight: recipient.weight,
-      block_timestamp: blockTimestamp,
-    });
+    if (receiverAccountType === 'sub_list') {
+      splits.push({
+        sender_account_id: accountId,
+        sender_account_type: 'sub_list',
+        receiver_account_id: recipient.accountId,
+        receiver_account_type: 'sub_list',
+        relationship_type: 'sub_list_link',
+        weight: recipient.weight,
+        block_timestamp: blockTimestamp,
+      });
+    } else {
+      splits.push({
+        sender_account_id: accountId,
+        sender_account_type: 'sub_list',
+        receiver_account_id: recipient.accountId,
+        receiver_account_type: receiverAccountType,
+        relationship_type: 'sub_list_receiver',
+        weight: recipient.weight,
+        block_timestamp: blockTimestamp,
+      });
+    }
   }
 
-  const { newSplits } = await splitsRepository.replaceSplitsForSender(accountId, splits, eventPointer);
+  const { newSplits } = await splitsRepository.replaceSplitsForSender(
+    accountId,
+    splits,
+    eventPointer,
+  );
 
   logger.info('sub_list_splits_updated', { accountId, splits: newSplits });
-}
-
-function getReceiverTypeFromMetadata(recipient: SubListRecipient): AccountType {
-  if (!('type' in recipient)) {
-    return 'address';
-  }
-
-  switch (recipient.type) {
-    case 'address':
-      return 'address';
-    case 'repoSubAccountDriver':
-      if (
-        'source' in recipient &&
-        'forge' in recipient.source &&
-        recipient.source.forge === 'orcid'
-      ) {
-        return 'linked_identity';
-      }
-      return 'project';
-    case 'dripList':
-      return 'drip_list';
-    case 'subList':
-      return 'sub_list';
-    case 'deadline':
-      return 'deadline';
-    default:
-      throw new Error(`Unknown receiver type: ${(recipient as any).type}`); // eslint-disable-line @typescript-eslint/no-explicit-any
-  }
 }
 
 function getAccountTypeFromMetadata(type: 'dripList' | 'ecosystem' | 'subList'): AccountType {

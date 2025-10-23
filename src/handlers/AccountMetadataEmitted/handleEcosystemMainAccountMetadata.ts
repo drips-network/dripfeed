@@ -7,7 +7,8 @@ import type { EcosystemMainAccountMetadata } from '../../services/MetadataServic
 import { logger } from '../../logger.js';
 import { verifyProjectSources } from '../../utils/verifyProjectSources.js';
 import { mapToAccountType } from '../../utils/mapToAccountType.js';
-import type { AccountType } from '../../utils/splitRules.js';
+import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
+import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 
 type EcosystemRecipient = EcosystemMainAccountMetadata['recipients'][number];
@@ -109,7 +110,10 @@ async function updateEcosystemMainAccount(
   });
 
   // Update the newly created ecosystem with metadata fields.
-  const secondUpdateResult = await ctx.ecosystemsRepo.updateEcosystemMainAccount(updates, eventPointer);
+  const secondUpdateResult = await ctx.ecosystemsRepo.updateEcosystemMainAccount(
+    updates,
+    eventPointer,
+  );
 
   if (!secondUpdateResult.success) {
     throw new Error(`Failed to update ecosystem metadata after migration: ${accountId}`);
@@ -137,38 +141,36 @@ async function updateEcosystemSplits(
       );
     }
 
-    splits.push({
-      sender_account_id: accountId,
-      sender_account_type: 'ecosystem_main_account',
-      receiver_account_id: recipient.accountId,
-      receiver_account_type: receiverAccountType,
-      relationship_type: 'ecosystem_receiver',
-      weight: recipient.weight,
-      block_timestamp: blockTimestamp,
-    });
-  }
+    assertValidReceiverType('ecosystem_main_account', receiverAccountType);
 
-  const { newSplits } = await splitsRepository.replaceSplitsForSender(accountId, splits, eventPointer);
-
-  logger.info('ecosystem_splits_updated', { accountId, splits: newSplits });
-}
-
-function getReceiverTypeFromMetadata(recipient: EcosystemRecipient): AccountType {
-  if ('type' in recipient) {
-    switch (recipient.type) {
-      case 'repoSubAccountDriver':
-        if ('source' in recipient && recipient.source.forge === 'orcid') {
-          return 'linked_identity';
-        }
-        return 'project';
-      case 'subList':
-        return 'sub_list';
-      case 'deadline':
-        return 'deadline';
-      default:
-        throw new Error(`Unknown ecosystem receiver type: ${(recipient as any).type}`); // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (receiverAccountType === 'sub_list') {
+      splits.push({
+        sender_account_id: accountId,
+        sender_account_type: 'ecosystem_main_account',
+        receiver_account_id: recipient.accountId,
+        receiver_account_type: 'sub_list',
+        relationship_type: 'sub_list_link',
+        weight: recipient.weight,
+        block_timestamp: blockTimestamp,
+      });
+    } else {
+      splits.push({
+        sender_account_id: accountId,
+        sender_account_type: 'ecosystem_main_account',
+        receiver_account_id: recipient.accountId,
+        receiver_account_type: 'project',
+        relationship_type: 'ecosystem_receiver',
+        weight: recipient.weight,
+        block_timestamp: blockTimestamp,
+      });
     }
   }
 
-  throw new Error('Ecosystem recipient missing type field');
+  const { newSplits } = await splitsRepository.replaceSplitsForSender(
+    accountId,
+    splits,
+    eventPointer,
+  );
+
+  logger.info('ecosystem_splits_updated', { accountId, splits: newSplits });
 }
