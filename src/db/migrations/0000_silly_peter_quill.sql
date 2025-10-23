@@ -4,6 +4,19 @@ CREATE TYPE forges AS ENUM('github', 'gitlab');--> statement-breakpoint
 CREATE TYPE linked_identity_types AS ENUM('orcid');--> statement-breakpoint
 CREATE TYPE verification_status AS ENUM('claimed', 'unclaimed', 'pending_metadata');--> statement-breakpoint
 CREATE TYPE relationship_type AS ENUM('project_maintainer', 'project_dependency', 'drip_list_receiver', 'ecosystem_receiver', 'sub_list_link', 'sub_list_receiver', 'identity_owner');--> statement-breakpoint
+CREATE TABLE "account_metadata_emitted_events" (
+	"key" text NOT NULL,
+	"value" text NOT NULL,
+	"account_id" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "account_metadata_emitted_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE TABLE "_block_hashes" (
 	"chain_id" text NOT NULL,
 	"block_number" bigint NOT NULL,
@@ -243,6 +256,7 @@ CREATE TABLE "sub_lists" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE INDEX "idx_account_metadata_emitted_events_account_id" ON "account_metadata_emitted_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_block_hashes_lookup" ON "_block_hashes" USING btree ("chain_id","block_number" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_deadlines_receiver_account_id" ON "deadlines" USING btree ("receiver_account_id");--> statement-breakpoint
 CREATE INDEX "idx_deadlines_claimable_project_id" ON "deadlines" USING btree ("claimable_project_id");--> statement-breakpoint

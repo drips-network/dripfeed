@@ -484,3 +484,26 @@ export const streamsSetEvents = pgTable(
     index('idx_streams_set_events_account_id').on(table.account_id),
   ],
 );
+
+// Account metadata emitted events table.
+export const accountMetadataEmittedEvents = pgTable(
+  'account_metadata_emitted_events',
+  {
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    account_id: text('account_id').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_account_metadata_emitted_events_account_id').on(table.account_id),
+  ],
+);

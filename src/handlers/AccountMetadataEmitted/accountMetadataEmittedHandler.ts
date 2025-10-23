@@ -35,6 +35,16 @@ export const accountMetadataEmittedHandler: EventHandler<AccountMetadataEmittedE
 
   const eventPointer = toEventPointer(event);
 
+  await ctx.accountMetadataEmittedEventsRepo.upsert({
+    key,
+    value,
+    account_id: accountIdStr,
+    log_index: event.logIndex,
+    block_number: event.blockNumber,
+    block_timestamp: event.blockTimestamp,
+    transaction_hash: event.txHash,
+  });
+
   if (key !== DRIPS_APP_USER_METADATA_KEY) {
     logger.warn('unsupported_account_metadata_key', { key });
     return;
