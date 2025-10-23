@@ -17,6 +17,7 @@ import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js'
 import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
 import { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
+import { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -201,6 +202,7 @@ export class EventProcessor {
         client,
         this._schema,
       ),
+      streamReceiverSeenEventsRepo: new StreamReceiverSeenEventsRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,

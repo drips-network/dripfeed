@@ -224,6 +224,19 @@ CREATE TABLE "squeezed_streams_events" (
 	CONSTRAINT "squeezed_streams_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
 );
 --> statement-breakpoint
+CREATE TABLE "stream_receiver_seen_events" (
+	"account_id" text NOT NULL,
+	"config" text NOT NULL,
+	"receivers_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "stream_receiver_seen_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE TABLE "streams_set_events" (
 	"account_id" text NOT NULL,
 	"erc20" text NOT NULL,
@@ -290,6 +303,7 @@ CREATE INDEX "idx_splits_receivers_receiver_sender" ON "splits_receivers" USING 
 CREATE INDEX "idx_splits_receivers_sender_receiver" ON "splits_receivers" USING btree ("sender_account_id","receiver_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_sender" ON "splits_receivers" USING btree ("sender_account_id");--> statement-breakpoint
 CREATE INDEX "idx_splits_receivers_event_pointer" ON "splits_receivers" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_stream_receiver_seen_events_account_id" ON "stream_receiver_seen_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_streams_set_events_receivers_hash" ON "streams_set_events" USING btree ("receivers_hash");--> statement-breakpoint
 CREATE INDEX "idx_streams_set_events_account_id" ON "streams_set_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_parent" ON "sub_lists" USING btree ("parent_account_id");--> statement-breakpoint

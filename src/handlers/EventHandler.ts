@@ -11,6 +11,7 @@ import type { GivenEventsRepository } from '../repositories/GivenEventsRepositor
 import type { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import type { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
 import type { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
+import type { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { Contracts } from '../services/Contracts.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -60,6 +61,7 @@ export type HandlerContext = {
   readonly squeezedStreamsEventsRepo: SqueezedStreamsEventsRepository;
   readonly streamsSetEventsRepo: StreamsSetEventsRepository;
   readonly accountMetadataEmittedEventsRepo: AccountMetadataEmittedEventsRepository;
+  readonly streamReceiverSeenEventsRepo: StreamReceiverSeenEventsRepository;
   readonly metadataService: MetadataService;
   readonly contracts: Contracts;
   readonly cacheInvalidationService: CacheInvalidationService;
