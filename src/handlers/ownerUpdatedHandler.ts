@@ -1,6 +1,6 @@
 import { type DecodeEventLogReturnType } from 'viem';
 
-import type { RepoDriverAbi } from '../chain-configs/all-chains.js';
+import type { RepoDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { toEventPointer } from '../repositories/types.js';
@@ -17,17 +17,18 @@ export const ownerUpdatedHandler: EventHandler<OwnerUpdatedEvent> = async (event
 
   const eventPointer = toEventPointer(event);
   const accountIdStr = accountId.toString();
-  const ownerAccountIdStr = (
-    await contracts.addressDriver.read.calcAccountId([owner])
-  ).toString();
+  const ownerAccountIdStr = (await contracts.addressDriver.read.calcAccountId([owner])).toString();
 
   if (isProject(accountIdStr)) {
-    const result = await projectsRepo.updateProject({
-      account_id: accountIdStr,
-      owner_address: owner,
-      owner_account_id: ownerAccountIdStr,
-      claimed_at: event.blockTimestamp,
-    }, eventPointer);
+    const result = await projectsRepo.updateProject(
+      {
+        account_id: accountIdStr,
+        owner_address: owner,
+        owner_account_id: ownerAccountIdStr,
+        claimed_at: event.blockTimestamp,
+      },
+      eventPointer,
+    );
 
     if (!result.success) {
       throw new Error(`Project not found for account_id: ${accountIdStr}`);
@@ -35,12 +36,15 @@ export const ownerUpdatedHandler: EventHandler<OwnerUpdatedEvent> = async (event
 
     logger.info('project_owner_updated', { project: result.data });
   } else if (isOrcidAccount(accountIdStr)) {
-    const result = await linkedIdentitiesRepo.updateLinkedIdentity({
-      account_id: accountIdStr,
-      owner_address: owner,
-      owner_account_id: ownerAccountIdStr,
-      claimed_at: event.blockTimestamp,
-    }, eventPointer);
+    const result = await linkedIdentitiesRepo.updateLinkedIdentity(
+      {
+        account_id: accountIdStr,
+        owner_address: owner,
+        owner_account_id: ownerAccountIdStr,
+        claimed_at: event.blockTimestamp,
+      },
+      eventPointer,
+    );
 
     if (!result.success) {
       throw new Error(`Linked identity not found for account_id: ${accountIdStr}`);

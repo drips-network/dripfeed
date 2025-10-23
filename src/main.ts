@@ -4,8 +4,8 @@ initTelemetry();
 
 const { config, runtimeConfigSchema } = await import('./config.js');
 const { logger } = await import('./logger.js');
-const { loadChainConfig } = await import('./chain-configs/loadChainConfig.js');
-const { logRuntimeConfig } = await import('./utils/logRuntimeConfig.js');
+const { loadChainConfig } = await import('./chains/loadChainConfig.js');
+const { logStartup: logRuntimeConfig } = await import('./utils/logStartup.js');
 const { createIndexer } = await import('./core/Indexer.js');
 const { createHealthServer } = await import('./health.js');
 

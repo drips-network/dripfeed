@@ -40,10 +40,7 @@ export class LockManager {
       }
 
       this._lockConn = lockConn;
-      logger.info('lock_acquired', {
-        schema: this._schema,
-        chain: this._chainId,
-      });
+      logger.info('✓ Lock acquired: ready to index\n');
     } catch (error) {
       lockConn.release();
       throw error;

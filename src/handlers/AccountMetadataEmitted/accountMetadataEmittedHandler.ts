@@ -2,7 +2,7 @@ import { fromHex, type DecodeEventLogReturnType } from 'viem';
 
 import { isProject, isOrcidAccount } from '../../utils/repoDriverAccountUtils.js';
 import { logger } from '../../logger.js';
-import type { DripsAbi } from '../../chain-configs/all-chains.js';
+import type { DripsAbi } from '../../chains/abis/abiTypes.js';
 import type { EventHandler, HandlerEvent } from '../EventHandler.js';
 import { isNftDriverId } from '../../utils/ntfDriverAccountIdUtils.js';
 import { isImmutableSplitsDriverId } from '../../utils/immutableSplitsDriverUtils.js';

@@ -1,6 +1,6 @@
 import { type DecodeEventLogReturnType } from 'viem';
 
-import type { DripsAbi } from '../chain-configs/all-chains.js';
+import type { DripsAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { isNftDriverId } from '../utils/ntfDriverAccountIdUtils.js';
@@ -38,11 +38,14 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
   const accountIdStr = accountId.toString();
 
   if (isOrcidAccount(accountIsStr)) {
-    const result = await linkedIdentitiesRepo.updateLinkedIdentity({
-      account_id: accountIdStr,
-      is_valid: isCurrentOnChain,
-      are_splits_valid: isCurrentOnChain,
-    }, eventPointer);
+    const result = await linkedIdentitiesRepo.updateLinkedIdentity(
+      {
+        account_id: accountIdStr,
+        is_valid: isCurrentOnChain,
+        are_splits_valid: isCurrentOnChain,
+      },
+      eventPointer,
+    );
 
     if (!result.success) {
       throw new Error(`Linked identity not found for account_id: ${accountIdStr}`);
@@ -58,10 +61,13 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
 
     return;
   } else if (isProject(accountIsStr)) {
-    const result = await projectsRepo.updateProject({
-      account_id: accountIdStr,
-      is_valid: isCurrentOnChain,
-    }, eventPointer);
+    const result = await projectsRepo.updateProject(
+      {
+        account_id: accountIdStr,
+        is_valid: isCurrentOnChain,
+      },
+      eventPointer,
+    );
 
     if (!result.success) {
       throw new Error(`Project not found for account_id: ${accountIdStr}`);
@@ -76,10 +82,13 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
 
     return;
   } else if (isNftDriverId(accountIsStr)) {
-    const dripListResult = await dripListsRepo.updateDripList({
-      account_id: accountIdStr,
-      is_valid: isCurrentOnChain,
-    }, eventPointer);
+    const dripListResult = await dripListsRepo.updateDripList(
+      {
+        account_id: accountIdStr,
+        is_valid: isCurrentOnChain,
+      },
+      eventPointer,
+    );
 
     if (dripListResult.success) {
       logger.info('drip_list_splits_validity_updated', {
@@ -92,10 +101,13 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       return;
     }
 
-    const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount({
-      account_id: accountIdStr,
-      is_valid: isCurrentOnChain,
-    }, eventPointer);
+    const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount(
+      {
+        account_id: accountIdStr,
+        is_valid: isCurrentOnChain,
+      },
+      eventPointer,
+    );
 
     if (ecosystemResult.success) {
       logger.info('ecosystem_splits_validity_updated', {
@@ -109,10 +121,13 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
 
     throw new Error(`No drip list or ecosystem found for NFT Driver account ID ${accountId}`);
   } else if (isImmutableSplitsDriverId(accountIsStr)) {
-    const subListResult = await subListsRepo.updateSubList({
-      account_id: accountIdStr,
-      is_valid: isCurrentOnChain,
-    }, eventPointer);
+    const subListResult = await subListsRepo.updateSubList(
+      {
+        account_id: accountIdStr,
+        is_valid: isCurrentOnChain,
+      },
+      eventPointer,
+    );
 
     if (subListResult.success) {
       logger.info('sub_list_splits_validity_updated', {

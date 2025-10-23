@@ -1,6 +1,6 @@
 import { fromHex, type DecodeEventLogReturnType } from 'viem';
 
-import type { RepoDriverAbi } from '../chain-configs/all-chains.js';
+import type { RepoDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import { mapForge } from '../utils/forgeUtils.js';
 import { toEventPointer } from '../repositories/types.js';
@@ -21,11 +21,14 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
   const eventPointer = toEventPointer(event);
   const accountIdStr = accountId.toString();
 
-  const project = await projects.ensureUnclaimedProject({
-    account_id: accountIdStr,
-    forge: mapForge(Number(forge)),
-    name: fromHex(name, 'string'),
-  }, eventPointer);
+  const project = await projects.ensureUnclaimedProject(
+    {
+      account_id: accountIdStr,
+      forge: mapForge(Number(forge)),
+      name: fromHex(name, 'string'),
+    },
+    eventPointer,
+  );
 
   logger.info('project_created_or_reset', { project });
 };

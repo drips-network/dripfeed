@@ -118,11 +118,8 @@ export function createHealthServer(
   });
 
   server.listen(port, () => {
-    logger.info('health_server_started', {
-      port,
-      staleTimeout: STALE_TIMEOUT,
-      message: `Health check available at http://localhost:${port}/api/health`,
-    });
+    logger.info(`✓ Health endpoint: http://localhost:${port}/api/health`);
+    logger.info(`✓ Health server started on port ${port}`);
   });
 
   return server;

@@ -1,6 +1,6 @@
 import { zeroAddress, type DecodeEventLogReturnType } from 'viem';
 
-import type { NftDriverAbi } from '../chain-configs/all-chains.js';
+import type { NftDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import type { UpdateDripListData } from '../repositories/DripListsRepository.js';
 import type { UpdateEcosystemMainAccountData } from '../repositories/EcosystemsRepository.js';
@@ -77,7 +77,10 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
     ecosystemUpdates.creator = to;
   }
 
-  const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount(ecosystemUpdates, eventPointer);
+  const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount(
+    ecosystemUpdates,
+    eventPointer,
+  );
 
   if (ecosystemResult.success) {
     logger.info('ecosystem_transfer_processed', {
@@ -91,12 +94,15 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
 
   // Neither drip list nor ecosystem exists, store in pending table.
   // The actual type will be determined when metadata is emitted.
-  await pendingNftTransfersRepo.upsertPendingNftTransfer({
-    account_id: accountId,
-    ...commonData,
-    creator: isMint ? to : null,
-    block_number: event.blockNumber,
-  }, eventPointer);
+  await pendingNftTransfersRepo.upsertPendingNftTransfer(
+    {
+      account_id: accountId,
+      ...commonData,
+      creator: isMint ? to : null,
+      block_number: event.blockNumber,
+    },
+    eventPointer,
+  );
 
   logger.info('nft_transfer_pending', {
     accountId,

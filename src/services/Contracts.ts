@@ -6,7 +6,8 @@ import type {
   AddressDriverAbi,
   NftDriverAbi,
   RepoSubAccountDriverAbi,
-} from '../chain-configs/all-chains.js';
+  RepoDeadlineDriverAbi,
+} from '../chains/abis/abiTypes.js';
 import type { ContractConfig } from '../core/EventDecoder.js';
 
 /**
@@ -21,6 +22,10 @@ export class Contracts {
     RepoSubAccountDriverAbi,
     PublicClient
   >;
+  public readonly repoDeadlineDriver: GetContractReturnType<
+    RepoDeadlineDriverAbi,
+    PublicClient
+  >;
 
   constructor(publicClient: PublicClient, contractConfigs: ReadonlyArray<ContractConfig>) {
     const repoDriver = contractConfigs.find((c) => c.name === 'RepoDriver');
@@ -28,6 +33,7 @@ export class Contracts {
     const addressDriver = contractConfigs.find((c) => c.name === 'AddressDriver');
     const nftDriver = contractConfigs.find((c) => c.name === 'NftDriver');
     const repoSubAccountDriver = contractConfigs.find((c) => c.name === 'RepoSubAccountDriver');
+    const repoDeadlineDriver = contractConfigs.find((c) => c.name === 'RepoDeadlineDriver');
 
     if (!repoDriver) {
       throw new Error('RepoDriver contract not found in chain config');
@@ -46,6 +52,10 @@ export class Contracts {
 
     if (!repoSubAccountDriver) {
       throw new Error('RepoSubAccountDriver contract not found in chain config');
+    }
+
+    if (!repoDeadlineDriver) {
+      throw new Error('RepoDeadlineDriver contract not found in chain config');
     }
 
     this.repoDriver = getContract({
@@ -75,6 +85,12 @@ export class Contracts {
     this.repoSubAccountDriver = getContract({
       address: repoSubAccountDriver.address,
       abi: repoSubAccountDriver.abi as RepoSubAccountDriverAbi,
+      client: publicClient,
+    });
+
+    this.repoDeadlineDriver = getContract({
+      address: repoDeadlineDriver.address,
+      abi: repoDeadlineDriver.abi as RepoDeadlineDriverAbi,
       client: publicClient,
     });
   }

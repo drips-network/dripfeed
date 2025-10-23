@@ -1,14 +1,22 @@
 import type { Abi } from 'abitype';
+import { isAddress } from 'viem';
 import { z } from 'zod';
 
 import { registry } from '../handlers/registry.js';
 import type { ContractConfig } from '../core/EventDecoder.js';
 
-import { mainnetConfig } from './mainnet.js';
+import { mainnetConfig } from './chain-configs/mainnet.js';
+import { filecoinConfig } from './chain-configs/filecoin.js';
+import { metisConfig } from './chain-configs/metis.js';
+import { optimismConfig } from './chain-configs/optimism.js';
+import { sepoliaConfig } from './chain-configs/sepolia.js';
 
 const contractConfigSchema = z.object({
   name: z.string(),
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid address format'),
+  address: z
+    .string()
+    .refine(isAddress, 'Invalid Ethereum address')
+    .transform((val) => val as `0x${string}`),
   abi: z.custom<Abi>(),
   events: z.array(z.string()),
 });
@@ -24,6 +32,10 @@ export type ChainConfig = z.infer<typeof chainConfigSchema>;
 
 const configs: Record<string, ChainConfig> = {
   mainnet: mainnetConfig,
+  filecoin: filecoinConfig,
+  metis: metisConfig,
+  optimism: optimismConfig,
+  sepolia: sepoliaConfig,
 };
 
 export function loadChainConfig(network: string): {
@@ -42,7 +54,7 @@ export function loadChainConfig(network: string): {
   const contractConfigs = validatedConfig.contracts.map((contract) => {
     return {
       name: contract.name,
-      address: contract.address as `0x${string}`,
+      address: contract.address,
       abi: contract.abi,
       handlers: contract.events.map((eventName) => {
         // Validate event exists in ABI.

@@ -1,10 +1,10 @@
-import type { dripsAbi } from './abis/dripsAbi.js';
-import type { nftDriverAbi } from './abis/nftDriverAbi.js';
-import type { addressDriverAbi } from './abis/addressDriverAbi.js';
-import type { repoSubAccountDriverAbi } from './abis/repoSubAccountDriverAbi.js';
-import type { repoDeadlineDriverAbi } from './abis/repoDeadlineDriverAbi.js';
-import type { repoDriverLegacyAbi } from './abis/repoDriverLegacyAbi.js';
-import type { repoDriverAbi } from './abis/repoDriverAbi.js';
+import type { dripsAbi } from './dripsAbi.js';
+import type { nftDriverAbi } from './nftDriverAbi.js';
+import type { addressDriverAbi } from './addressDriverAbi.js';
+import type { repoSubAccountDriverAbi } from './repoSubAccountDriverAbi.js';
+import type { repoDeadlineDriverAbi } from './repoDeadlineDriverAbi.js';
+import type { repoDriverLegacyAbi } from './repoDriverLegacyAbi.js';
+import type { repoDriverAbi } from './repoDriverAbi.js';
 
 export type DripsAbi = typeof dripsAbi;
 export type NftDriverAbi = typeof nftDriverAbi;
