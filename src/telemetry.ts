@@ -63,6 +63,13 @@ export function initTelemetry(): void {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   const serviceName = process.env.OTEL_SERVICE_NAME;
   const debugMode = process.env.OTEL_DEBUG === 'true';
+  const nodeEnv = process.env.NODE_ENV;
+
+  // Only enable telemetry in production (or when debug mode is on).
+  if (nodeEnv !== 'production' && !debugMode) {
+    console.warn('⚠️  Telemetry disabled\n');
+    return;
+  }
 
   const requiredEnvVarsSet = (endpoint !== undefined || debugMode) && serviceName !== undefined;
 
