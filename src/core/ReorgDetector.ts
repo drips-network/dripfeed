@@ -1,9 +1,9 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 import type { CursorRepository } from '../repositories/CursorRepository.js';
 import type { EventRepository } from '../repositories/EventsRepository.js';
 import type { BlockHashesRepository } from '../repositories/BlockHashesRepository.js';
-import { validateSchemaName } from '../utils/sqlValidation.js';
+import { validateSchemaName, validateIdentifier } from '../utils/sqlValidation.js';
 import { logger } from '../logger.js';
 import { getReorgLockId } from '../utils/advisoryLock.js';
 
@@ -245,6 +245,9 @@ export class ReorgDetector {
         });
       }
 
+      // Delete event log tables from reorg block onwards.
+      await this._deleteEventLogTables(client, reorgBlock);
+
       // Delete block hashes from reorg block onwards.
       await this._blockHashesRepo.deleteBlockHashesFromBlock(client, this._chainId, reorgBlock);
       logger.info('reorg_block_hashes_deleted', {
@@ -283,6 +286,85 @@ export class ReorgDetector {
       throw normalizedError;
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * Deletes event log records from reorg block onwards.
+   * Event log tables store immutable historical records of events and must be cleaned
+   * during reorgs to maintain consistency with the canonical chain.
+   *
+   * Automatically discovers tables by querying for tables that:
+   * - End with '_events' (but not the system table '_events' itself)
+   * - Have a 'block_number' column
+   */
+  private async _deleteEventLogTables(client: PoolClient, reorgBlock: bigint): Promise<void> {
+    // Discover event log tables from schema.
+    const tablesResult = await client.query<{ table_name: string }>(
+      `
+      SELECT DISTINCT t.table_name
+      FROM information_schema.tables t
+      INNER JOIN information_schema.columns c
+        ON t.table_schema = c.table_schema
+        AND t.table_name = c.table_name
+        AND c.column_name = 'block_number'
+      WHERE t.table_schema = $1
+        AND t.table_type = 'BASE TABLE'
+        AND t.table_name LIKE '%\\_events'
+        AND t.table_name != '_events'
+      ORDER BY t.table_name
+      `,
+      [this._schema],
+    );
+
+    const eventLogTables = tablesResult.rows.map((row) => row.table_name);
+
+    if (eventLogTables.length === 0) {
+      logger.debug('reorg_no_event_log_tables', {
+        schema: this._schema,
+        chain: this._chainId,
+        message: 'No event log tables found to clean up',
+      });
+      return;
+    }
+
+    logger.info('reorg_event_log_tables_discovered', {
+      schema: this._schema,
+      chain: this._chainId,
+      tables: eventLogTables,
+      count: eventLogTables.length,
+    });
+
+    for (const table of eventLogTables) {
+      // Validate table name to prevent SQL injection.
+      let validatedTable: string;
+      try {
+        validatedTable = validateIdentifier(table);
+      } catch (error) {
+        logger.warn('reorg_invalid_table_name_skipped', {
+          schema: this._schema,
+          chain: this._chainId,
+          table,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+
+      const result = await client.query(
+        `DELETE FROM ${this._schema}.${validatedTable} WHERE block_number >= $1`,
+        [reorgBlock.toString()],
+      );
+
+      const deletedCount = result.rowCount || 0;
+      if (deletedCount > 0) {
+        logger.info('reorg_event_log_table_deleted', {
+          schema: this._schema,
+          chain: this._chainId,
+          table: validatedTable,
+          fromBlock: reorgBlock.toString(),
+          deletedCount,
+        });
+      }
     }
   }
 

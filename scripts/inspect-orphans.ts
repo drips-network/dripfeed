@@ -107,6 +107,9 @@ const DOMAIN_TABLES = [
 /**
  * Validates that DOMAIN_TABLES covers all domain tables in the database.
  * Fails fast if any tables are missing from the list.
+ *
+ * Excludes event log tables (*_events) since they don't have event pointer columns
+ * and are handled by ReorgDetector._deleteEventLogTables() instead.
  */
 async function validateDomainTablesCoverage(pool: Pool, schema: string): Promise<void> {
   const result = await pool.query<{ table_name: string }>(
@@ -122,6 +125,10 @@ async function validateDomainTablesCoverage(pool: Pool, schema: string): Promise
       AND (
         t.table_name NOT LIKE '\\_%'
         OR t.table_name = '_pending_nft_transfers'
+      )
+      AND NOT (
+        t.table_name LIKE '%\\_events'
+        AND t.table_name != '_pending_nft_transfers'
       )
     ORDER BY t.table_name
     `,
