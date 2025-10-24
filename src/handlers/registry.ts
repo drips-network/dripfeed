@@ -4,7 +4,7 @@ import { givenHandler } from './givenHandler.js';
 import { ownerUpdatedHandler } from './ownerUpdatedHandler.js';
 import { ownerUpdateRequestedHandler } from './ownerUpdateRequestedHandler.js';
 import { splitHandler } from './splitHandler.js';
-import { splitsSetHandler } from './splitsSetHandler.js';
+import { splitsSetHandler } from './SplitsSet/splitsSetHandler.js';
 import { squeezedStreamsHandler } from './squeezedStreamsHandler.js';
 import { streamReceiverSeenHandler } from './streamReceiverSeenHandler.js';
 import { streamsSetHandler } from './streamsSetHandler.js';

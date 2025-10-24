@@ -50,7 +50,7 @@ export const ownerUpdatedHandler: EventHandler<OwnerUpdatedEvent> = async (event
       throw new Error(`Linked identity not found for account_id: ${accountIdStr}`);
     }
 
-    logger.info('linked_identity_owner_updated', { linkedIdentity: result.data });
+    logger.info('orcid_owner_updated', { linkedIdentity: result.data });
   } else {
     logger.warn('owner_updated_unsupported_account', { accountId: accountIdStr });
   }

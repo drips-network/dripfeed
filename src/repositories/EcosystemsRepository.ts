@@ -121,19 +121,9 @@ export class EcosystemsRepository {
     return ecosystem;
   }
 
-  /**
-   * Gets an ecosystem main account by account ID.
-   *
-   * @param accountId - The account ID.
-   * @returns The ecosystem main account or null if not found.
-   */
   async getEcosystemMainAccount(accountId: string): Promise<EcosystemMainAccount | null> {
     const result = await this.client.query<EcosystemMainAccount>(
-      `
-      SELECT *
-      FROM ${this.schema}.ecosystem_main_accounts
-      WHERE account_id = $1
-    `,
+      `SELECT * FROM ${this.schema}.ecosystem_main_accounts WHERE account_id = $1`,
       [accountId],
     );
 

@@ -50,6 +50,19 @@ export class LinkedIdentitiesRepository {
     validateSchemaName(schema);
   }
 
+  async getLinkedIdentity(accountId: string): Promise<LinkedIdentity | null> {
+    const result = await this.client.query<LinkedIdentity>(
+      `SELECT * FROM ${this.schema}.linked_identities WHERE account_id = $1`,
+      [accountId],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return linkedIdentitySchema.parse(result.rows[0]);
+  }
+
   async ensureUnclaimedLinkedIdentity(
     data: EnsureUnclaimedLinkedIdentity,
     eventPointer: EventPointer,
@@ -63,7 +76,6 @@ export class LinkedIdentitiesRepository {
       owner_address: null,
       owner_account_id: null,
       are_splits_valid: false,
-      is_valid: false,
       is_visible: true,
       last_event_block: eventPointer.last_event_block,
       last_event_tx_index: eventPointer.last_event_tx_index,

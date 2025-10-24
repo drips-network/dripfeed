@@ -1,13 +1,15 @@
 import { type DecodeEventLogReturnType } from 'viem';
 
-import type { DripsAbi } from '../chains/abis/abiTypes.js';
-import { logger } from '../logger.js';
-import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
-import { isNftDriverId } from '../utils/ntfDriverAccountIdUtils.js';
-import { isImmutableSplitsDriverId } from '../utils/immutableSplitsDriverUtils.js';
-import { toEventPointer } from '../repositories/types.js';
+import type { DripsAbi } from '../../chains/abis/abiTypes.js';
+import { logger } from '../../logger.js';
+import { isOrcidAccount, isProject } from '../../utils/repoDriverAccountUtils.js';
+import { isNftDriverId } from '../../utils/ntfDriverAccountIdUtils.js';
+import { isImmutableSplitsDriverId } from '../../utils/immutableSplitsDriverUtils.js';
+import { toEventPointer } from '../../repositories/types.js';
+import { unreachable } from '../../utils/unreachable.js';
+import type { EventHandler, HandlerEvent } from '../EventHandler.js';
 
-import type { EventHandler, HandlerEvent } from './EventHandler.js';
+import { isSplittingToOwnerOnly } from './isSplittingToOwnerOnly.js';
 
 type SplitsSetEvent = HandlerEvent & {
   args: DecodeEventLogReturnType<DripsAbi, 'SplitsSet'>['args'];
@@ -21,13 +23,10 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     dripListsRepo,
     ecosystemsRepo,
     subListsRepo,
-    contracts: contracts,
+    contracts,
   } = ctx;
-  const accountIsStr = accountId.toString();
 
-  const eventPointer = toEventPointer(event);
-
-  // Unsafe call is acceptable here for "valid NOW" semantics:
+  // "Unsafe" call is acceptable here for "valid NOW" semantics:
   // - Non-deterministic: same historic event may produce different results if reprocessed later
   // - Eventual consistency: after catch-up, only the latest SplitsSet has is_valid=true
   // - Acceptable staleness: RPC query may lag 1-2 blocks behind chain tip
@@ -36,31 +35,49 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
 
   const isCurrentOnChain = onChainSplits === receiversHash;
   const accountIdStr = accountId.toString();
+  const eventPointer = toEventPointer(event);
 
-  if (isOrcidAccount(accountIsStr)) {
+  if (isOrcidAccount(accountIdStr)) {
+    const linkedIdentity = await linkedIdentitiesRepo.getLinkedIdentity(accountIdStr);
+    if (!linkedIdentity || !linkedIdentity.owner_account_id) {
+      unreachable(
+        `ORCID with account ID ${accountIdStr} not found or has no owner while processing splits but was expected to exist`,
+      );
+    }
+
+    const areSplitsValid =
+      isCurrentOnChain &&
+      (await isSplittingToOwnerOnly(
+        linkedIdentity.owner_account_id,
+        onChainSplits,
+        contracts.drips,
+      ));
+
     const result = await linkedIdentitiesRepo.updateLinkedIdentity(
       {
         account_id: accountIdStr,
-        is_valid: isCurrentOnChain,
-        are_splits_valid: isCurrentOnChain,
+        are_splits_valid: areSplitsValid,
       },
       eventPointer,
     );
 
     if (!result.success) {
-      throw new Error(`Linked identity not found for account_id: ${accountIdStr}`);
+      unreachable(
+        `ORCID with account ID ${accountIdStr} not found while processing splits but was previously found`,
+      );
     }
 
-    logger.info('linked_identity_splits_validity_updated', {
+    logger.info('orcid_splits_validity_updated', {
       accountId: accountIdStr,
       splitsHash: receiversHash,
-      isValid: isCurrentOnChain,
-      areSplitsValid: isCurrentOnChain,
+      isCurrentOnChain,
+      areSplitsValid,
+      ownerAccountId: linkedIdentity.owner_account_id,
       identityType: result.data.identity_type,
     });
 
     return;
-  } else if (isProject(accountIsStr)) {
+  } else if (isProject(accountIdStr)) {
     const result = await projectsRepo.updateProject(
       {
         account_id: accountIdStr,
@@ -70,7 +87,9 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     );
 
     if (!result.success) {
-      throw new Error(`Project not found for account_id: ${accountIdStr}`);
+      unreachable(
+        `Project with account ID ${accountIdStr} not found while processing splits but it was expected to exist`,
+      );
     }
 
     logger.info('project_splits_validity_updated', {
@@ -81,7 +100,7 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     });
 
     return;
-  } else if (isNftDriverId(accountIsStr)) {
+  } else if (isNftDriverId(accountIdStr)) {
     const dripListResult = await dripListsRepo.updateDripList(
       {
         account_id: accountIdStr,
@@ -119,8 +138,10 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       return;
     }
 
-    throw new Error(`No drip list or ecosystem found for NFT Driver account ID ${accountId}`);
-  } else if (isImmutableSplitsDriverId(accountIsStr)) {
+    unreachable(
+      `No drip list or ecosystem found for NFT Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
+    );
+  } else if (isImmutableSplitsDriverId(accountIdStr)) {
     const subListResult = await subListsRepo.updateSubList(
       {
         account_id: accountIdStr,
@@ -139,7 +160,9 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       return;
     }
 
-    throw new Error(`No sub list found for Immutable Splits Driver account ID ${accountId}`);
+    unreachable(
+      `No sub list found for Immutable Splits Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
+    );
   } else {
     logger.warn('unsupported_splits_set_account_type', { accountId: accountIdStr });
   }
