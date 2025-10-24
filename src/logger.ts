@@ -39,6 +39,11 @@ class Logger {
   private reset = '\x1b[0m';
   private dim = '\x1b[2m';
   private bold = '\x1b[1m';
+  private cyan = '\x1b[36m';
+
+  private fieldColors: Record<string, string> = {
+    progressPercent: this.cyan,
+  };
 
   setMinLevel(level: LogLevel): this {
     this.minLevel = level;
@@ -95,10 +100,28 @@ class Logger {
 
     if (context && Object.keys(context).length > 0) {
       const serializedContext = this._serializeBigInt(context);
-      output += ` ${this.dim}${JSON.stringify(serializedContext)}${this.reset}`;
+      const colorizedContext = this._colorizeFields(serializedContext);
+      output += ` ${this.dim}${colorizedContext}${this.reset}`;
     }
 
     return output;
+  }
+
+  private _colorizeFields(context: unknown): string {
+    if (typeof context !== 'object' || context === null) {
+      return JSON.stringify(context);
+    }
+
+    const entries = Object.entries(context).map(([key, value]) => {
+      const serialized = JSON.stringify(value);
+      const fieldColor = this.fieldColors[key];
+      if (fieldColor) {
+        return `"${key}":${fieldColor}${serialized}${this.reset}${this.dim}`;
+      }
+      return `"${key}":${serialized}`;
+    });
+
+    return `{${entries.join(',')}}`;
   }
 
   private _serializeBigInt(obj: unknown): unknown {
