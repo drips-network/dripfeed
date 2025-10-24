@@ -3,6 +3,7 @@ import { fromHex, type DecodeEventLogReturnType } from 'viem';
 import type { RepoDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import { mapForge } from '../utils/forgeUtils.js';
+import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { toEventPointer } from '../repositories/types.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
@@ -16,19 +17,35 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
   ctx,
 ) => {
   const { accountId, forge, name } = event.args;
-  const { projectsRepo: projects } = ctx;
+  const { projectsRepo, linkedIdentitiesRepo } = ctx;
 
   const eventPointer = toEventPointer(event);
   const accountIdStr = accountId.toString();
+  const nameStr = fromHex(name, 'string');
 
-  const project = await projects.ensureUnclaimedProject(
-    {
-      account_id: accountIdStr,
-      forge: mapForge(Number(forge)),
-      name: fromHex(name, 'string'),
-    },
-    eventPointer,
-  );
+  if (isProject(accountIdStr)) {
+    const project = await projectsRepo.ensureUnclaimedProject(
+      {
+        account_id: accountIdStr,
+        forge: mapForge(Number(forge)),
+        name: nameStr,
+      },
+      eventPointer,
+    );
 
-  logger.info('project_created_or_reset', { project });
+    logger.info('project_created_or_reset', { project });
+  } else if (isOrcidAccount(accountIdStr)) {
+    const orcid = await linkedIdentitiesRepo.ensureUnclaimedLinkedIdentity(
+      {
+        account_id: accountIdStr,
+        identity_type: 'orcid',
+        orcid_id: nameStr,
+      },
+      eventPointer,
+    );
+
+    logger.info('orcid_created_or_reset', { orcid });
+  } else {
+    logger.warn('owner_update_requested_unsupported_account', { accountId: accountIdStr });
+  }
 };
