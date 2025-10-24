@@ -1,5 +1,6 @@
 import { addressDriverAbi } from './abis/addressDriverAbi.js';
 import { dripsAbi } from './abis/dripsAbi.js';
+import { immutableSplitsDriverAbi } from './abis/immutableSplitsAbi.js';
 import { nftDriverAbi } from './abis/nftDriverAbi.js';
 import { repoDeadlineDriverAbi } from './abis/repoDeadlineDriverAbi.js';
 import { repoDriverAbi } from './abis/repoDriverAbi.js';
@@ -9,6 +10,7 @@ import type { ChainConfig } from './loadChainConfig.js';
 import {
   ADDRESS_DRIVER_EVENTS,
   DRIPS_EVENTS,
+  IMMUTABLE_SPLITS_DRIVER_EVENTS,
   NFT_DRIVER_EVENTS,
   REPO_DEADLINE_DRIVER_EVENTS,
   REPO_DRIVER_EVENTS,
@@ -62,4 +64,13 @@ export const repoSubAccountDriver = (address: `0x${string}`): ChainConfig['contr
   address,
   abi: repoSubAccountDriverAbi,
   events: REPO_SUB_ACCOUNT_DRIVER_EVENTS,
+});
+
+export const immutableSplitsDriver = (
+  address: `0x${string}`,
+): ChainConfig['contracts'][number] => ({
+  name: 'ImmutableSplitsDriver',
+  address,
+  abi: immutableSplitsDriverAbi,
+  events: IMMUTABLE_SPLITS_DRIVER_EVENTS,
 });

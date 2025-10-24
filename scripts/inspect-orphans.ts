@@ -1,7 +1,7 @@
 import { Pool, types } from 'pg';
 
 import { config } from '../src/config.js';
-import { loadChainConfig } from '../src/chain-configs/loadChainConfig.js';
+import { loadChainConfig } from '../src/chains/loadChainConfig.js';
 import { validateSchemaName } from '../src/utils/sqlValidation.js';
 
 const COLORS = {
@@ -44,7 +44,7 @@ function parseArgs(): Args {
       chainId = args[i + 1];
       i++;
     } else if (args[i] === '--block' && args[i + 1]) {
-      block = BigInt(args[i + 1]);
+      block = BigInt(args[i + 1]!);
       i++;
     }
   }

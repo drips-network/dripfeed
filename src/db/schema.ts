@@ -111,6 +111,9 @@ export const projects = pgTable(
   {
     account_id: text('account_id').primaryKey(),
     name: text('name').notNull(),
+    is_valid: boolean('is_valid').notNull(),
+    is_visible: boolean('is_visible').notNull(),
+    verification_status: projectStatusEnum('verification_status').notNull(),
     owner_address: text('owner_address'),
     owner_account_id: text('owner_account_id'),
     claimed_at: timestamp('claimed_at', { withTimezone: true }),
@@ -120,9 +123,6 @@ export const projects = pgTable(
     color: text('color'),
     avatar_cid: text('avatar_cid'),
     last_processed_ipfs_hash: text('last_processed_ipfs_hash'),
-    verification_status: projectStatusEnum('verification_status').notNull(),
-    is_valid: boolean('is_valid').notNull(),
-    is_visible: boolean('is_visible').notNull(),
     last_event_block: bigint('last_event_block', { mode: 'bigint' }),
     last_event_tx_index: integer('last_event_tx_index'),
     last_event_log_index: integer('last_event_log_index'),
@@ -150,7 +150,6 @@ export const linkedIdentities = pgTable(
   {
     account_id: text('account_id').primaryKey(),
     identity_type: linkedIdentityTypeEnum('identity_type').notNull(),
-    orcid_id: text('orcid_id').notNull(),
     owner_address: text('owner_address'),
     owner_account_id: text('owner_account_id'),
     claimed_at: timestamp('claimed_at', { withTimezone: true }),
@@ -169,7 +168,6 @@ export const linkedIdentities = pgTable(
   (table) => [
     index('idx_linked_identities_owner_address').on(table.owner_address),
     index('idx_linked_identities_identity_type').on(table.identity_type),
-    index('idx_linked_identities_orcid_id').on(table.orcid_id),
     index('idx_linked_identities_event_pointer').on(
       table.last_event_block,
       table.last_event_tx_index,

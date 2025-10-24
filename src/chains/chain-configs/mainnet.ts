@@ -12,5 +12,6 @@ export const mainnetConfig = {
     c.addressDriver('0x1455d9bD6B98f95dd8FEB2b3D60ed825fcef0610'),
     c.repoDeadlineDriver('0x8324ea3538f12895c941a625b7f15df2d7dbfdff'),
     c.repoSubAccountDriver('0xc219395880fa72e3ad9180b8878e0d39d144130b'),
+    c.immutableSplitsDriver('0x1212975c0642B07F696080ec1916998441c2b774'),
   ],
 } as const as ChainConfig;

@@ -39,7 +39,6 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
       {
         account_id: accountIdStr,
         identity_type: 'orcid',
-        orcid_id: nameStr,
       },
       eventPointer,
     );

@@ -80,10 +80,10 @@ export class MetadataService {
     } catch (error) {
       logger.error('failed_to_fetch_nft_driver_account_metadata', {
         ipfsHash: cId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : JSON.stringify(error),
       });
       throw new Error(
-        `Failed to fetch NFT driver account metadata from IPFS: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to fetch NFT driver account metadata from IPFS: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
       );
     }
   }

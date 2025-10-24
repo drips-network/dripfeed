@@ -17,3 +17,5 @@ export const ADDRESS_DRIVER_EVENTS: string[] = [];
 export const REPO_DEADLINE_DRIVER_EVENTS: string[] = [];
 
 export const REPO_SUB_ACCOUNT_DRIVER_EVENTS: string[] = [];
+
+export const IMMUTABLE_SPLITS_DRIVER_EVENTS = [];

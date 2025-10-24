@@ -4,7 +4,7 @@ import { Pool, types } from 'pg';
 import { createPublicClient, http, type Chain } from 'viem';
 
 import { config } from '../src/config.js';
-import { loadChainConfig } from '../src/chain-configs/loadChainConfig.js';
+import { loadChainConfig } from '../src/chains/loadChainConfig.js';
 import { RpcClient } from '../src/core/RpcClient.js';
 import { ReorgDetector } from '../src/core/ReorgDetector.js';
 import { CursorRepository } from '../src/repositories/CursorRepository.js';

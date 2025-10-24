@@ -15,14 +15,12 @@ export type LinkedIdentityType = z.infer<typeof linkedIdentitySchema.shape.ident
 const ensureUnclaimedLinkedIdentityInputSchema = linkedIdentitySchema.pick({
   account_id: true,
   identity_type: true,
-  orcid_id: true,
 });
 type EnsureUnclaimedLinkedIdentity = z.infer<typeof ensureUnclaimedLinkedIdentityInputSchema>;
 
 const updateLinkedIdentityDataInputSchema = linkedIdentitySchema
   .omit({
     identity_type: true,
-    orcid_id: true,
     created_at: true,
     updated_at: true,
   })
@@ -72,7 +70,6 @@ export class LinkedIdentitiesRepository {
     const upsertData = {
       account_id: data.account_id,
       identity_type: data.identity_type,
-      orcid_id: data.orcid_id,
       owner_address: null,
       owner_account_id: null,
       are_splits_valid: false,
@@ -87,7 +84,6 @@ export class LinkedIdentitiesRepository {
       typeof upsertData,
       'account_id',
       | 'identity_type'
-      | 'orcid_id'
       | 'owner_address'
       | 'owner_account_id'
       | 'are_splits_valid'
@@ -102,7 +98,6 @@ export class LinkedIdentitiesRepository {
       conflictColumns: ['account_id'],
       updateColumns: [
         'identity_type',
-        'orcid_id',
         'owner_address',
         'owner_account_id',
         'are_splits_valid',
