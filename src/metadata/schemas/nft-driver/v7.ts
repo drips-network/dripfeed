@@ -7,6 +7,7 @@ import {
 import { subListSplitReceiverSchema } from '../immutable-splits-driver/v1.js';
 import { repoSubAccountDriverSplitReceiverSchema } from '../common/repoSubAccountDriverSplitReceiverSchema.js';
 import { emojiAvatarSchema } from '../repo-driver/v4.js';
+import { orcidSplitReceiverSchema } from '../repo-driver/v6.js';
 
 import { dripListSplitReceiverSchema } from './v2.js';
 import { nftDriverAccountMetadataSchemaV5 } from './v5.js';
@@ -37,6 +38,7 @@ const dripListVariant = base.extend({
       subListSplitReceiverSchema,
       addressDriverSplitReceiverSchema,
       dripListSplitReceiverSchema,
+      orcidSplitReceiverSchema,
     ]),
   ),
 });
