@@ -133,21 +133,6 @@ export class LinkedIdentitiesRepository {
       last_event_log_index: eventPointer.last_event_log_index,
     };
 
-    const isUpdatingOwner = 'owner_address' in updates;
-    const newOwnerValue = updates.owner_address;
-
-    const ownerCheck = isUpdatingOwner
-      ? newOwnerValue !== null
-        ? 'TRUE'
-        : 'FALSE'
-      : 'owner_address IS NOT NULL';
-
-    const ownerNullCheck = isUpdatingOwner
-      ? newOwnerValue === null
-        ? 'TRUE'
-        : 'FALSE'
-      : 'owner_address IS NULL';
-
     const result = await update<
       LinkedIdentity,
       typeof updateData,
@@ -165,15 +150,6 @@ export class LinkedIdentitiesRepository {
         'last_event_tx_index',
         'last_event_log_index',
       ] as Array<keyof typeof updateData>,
-      computedColumns: {
-        claimed_at: `
-          (CASE
-            WHEN ${ownerCheck} AND claimed_at IS NULL THEN NOW()
-            WHEN ${ownerNullCheck} THEN NULL
-            ELSE claimed_at
-          END)
-        `.trim(),
-      },
     });
 
     if (result.rows.length === 0) {
