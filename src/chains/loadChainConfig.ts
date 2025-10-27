@@ -10,6 +10,7 @@ import { filecoinConfig } from './chain-configs/filecoin.js';
 import { metisConfig } from './chain-configs/metis.js';
 import { optimismConfig } from './chain-configs/optimism.js';
 import { sepoliaConfig } from './chain-configs/sepolia.js';
+import { localtestnetConfig } from './chain-configs/localtestnet.js';
 
 const contractConfigSchema = z.object({
   name: z.string(),
@@ -36,6 +37,7 @@ const configs: Record<string, ChainConfig> = {
   metis: metisConfig,
   optimism: optimismConfig,
   sepolia: sepoliaConfig,
+  localtestnet: localtestnetConfig,
 };
 
 export function loadChainConfig(network: string): {
