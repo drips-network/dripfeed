@@ -17,6 +17,7 @@ const ensureUnclaimedProjectInputSchema = projectSchema.pick({
   account_id: true,
   forge: true,
   name: true,
+  url: true,
 });
 type EnsureUnclaimedProject = z.infer<typeof ensureUnclaimedProjectInputSchema>;
 
@@ -76,6 +77,7 @@ export class ProjectsRepository {
       name: data.name,
       owner_address: null,
       owner_account_id: null,
+      url: data.url,
       verification_status: 'unclaimed' as ProjectStatus,
       is_valid: true, // no splits yet, so valid by default
       is_visible: true,
@@ -90,6 +92,7 @@ export class ProjectsRepository {
       'account_id',
       | 'forge'
       | 'name'
+      | 'url'
       | 'owner_address'
       | 'owner_account_id'
       | 'verification_status'
@@ -105,6 +108,7 @@ export class ProjectsRepository {
       updateColumns: [
         'forge',
         'name',
+        'url',
         'owner_address',
         'owner_account_id',
         'verification_status',

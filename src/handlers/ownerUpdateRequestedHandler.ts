@@ -5,6 +5,7 @@ import { logger } from '../logger.js';
 import { mapForge } from '../utils/forgeUtils.js';
 import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { toEventPointer } from '../repositories/types.js';
+import type { Forge } from '../repositories/ProjectsRepository.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
 
@@ -29,6 +30,7 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
         account_id: accountIdStr,
         forge: mapForge(Number(forge)),
         name: nameStr,
+        url: toUrl(mapForge(Number(forge)), nameStr),
       },
       eventPointer,
     );
@@ -48,3 +50,12 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
     logger.warn('owner_update_requested_unsupported_account', { accountId: accountIdStr });
   }
 };
+
+function toUrl(forge: Forge, projectName: string): string {
+  switch (forge) {
+    case 'github':
+      return `https://github.com/${projectName}`;
+    default:
+      throw new Error(`Unsupported forge: ${forge}.`);
+  }
+}

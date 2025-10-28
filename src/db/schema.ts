@@ -117,7 +117,7 @@ export const projects = pgTable(
     owner_address: text('owner_address'),
     owner_account_id: text('owner_account_id'),
     claimed_at: timestamp('claimed_at', { withTimezone: true }),
-    url: text('url'),
+    url: text('url').notNull(),
     forge: forgeEnum('forge').notNull(),
     emoji: text('emoji'),
     color: text('color'),

@@ -1,5 +1,5 @@
 {
-  "id": "356eb02d-90cd-4a57-b100-793be9e8183f",
+  "id": "afe4ab79-0570-412d-9a55-e851cdd38735",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1194,7 +1194,7 @@
           "name": "url",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "forge": {
           "name": "forge",

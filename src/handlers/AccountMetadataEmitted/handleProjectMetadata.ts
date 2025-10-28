@@ -51,6 +51,17 @@ async function updateProject(
 ) {
   const { areSplitsValid } = await validateSplits(projectId, ctx.splitsRepo, ctx.contracts);
 
+  const project = await ctx.projectsRepo.findById(projectId);
+  if (!project) {
+    throw new Error(`Project not found for account_id: ${projectId}`);
+  }
+
+  if (project.url !== metadata.source.url) {
+    throw new Error(
+      `Project URL mismatch: existing URL ${project.url} does not match metadata URL ${metadata.source.url}`,
+    );
+  }
+
   const updates: {
     url: string;
     forge: 'github';

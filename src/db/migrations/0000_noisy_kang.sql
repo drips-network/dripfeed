@@ -147,7 +147,7 @@ CREATE TABLE "projects" (
 	"owner_address" text,
 	"owner_account_id" text,
 	"claimed_at" timestamp with time zone,
-	"url" text,
+	"url" text NOT NULL,
 	"forge" "forges" NOT NULL,
 	"emoji" text,
 	"color" text,
