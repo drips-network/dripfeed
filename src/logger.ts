@@ -42,7 +42,7 @@ class Logger {
   private cyan = '\x1b[36m';
 
   private fieldColors: Record<string, string> = {
-    progressPercent: this.cyan,
+    progressPercent: this.bold + this.cyan,
   };
 
   setMinLevel(level: LogLevel): this {

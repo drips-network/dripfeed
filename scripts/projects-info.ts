@@ -27,6 +27,7 @@ const COLORS = {
   RED: '\x1b[0;31m',
   YELLOW: '\x1b[1;33m',
   GREEN: '\x1b[0;32m',
+  GREEN_BOLD: '\x1b[1;32m',
   BLUE: '\x1b[0;34m',
   CYAN: '\x1b[0;36m',
   MAGENTA: '\x1b[0;35m',
@@ -305,7 +306,7 @@ async function main(): Promise<void> {
       `  Claimed: ${stats.claimed} (${((stats.claimed / stats.total) * 100).toFixed(1)}%)`,
     );
     console.log(
-      `  Valid & Visible: ${COLORS.GREEN}${validAndVisibleProjects}${COLORS.NC} (${validAndVisiblePercentage}%)`,
+      `  ${COLORS.GREEN_BOLD}✓ Valid & Visible: ${validAndVisibleProjects}${COLORS.NC} (${validAndVisiblePercentage}%)`,
     );
 
     if (stats.invalidSplits > 0) {

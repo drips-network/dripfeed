@@ -15,6 +15,7 @@ const COLORS = {
   RED: '\x1b[0;31m',
   YELLOW: '\x1b[1;33m',
   GREEN: '\x1b[0;32m',
+  GREEN_BOLD: '\x1b[1;32m',
   BLUE: '\x1b[0;34m',
   CYAN: '\x1b[0;36m',
   NC: '\x1b[0m',
@@ -163,7 +164,7 @@ async function main(): Promise<void> {
 
     console.log(`  Total Drip Lists: ${stats.total}`);
     console.log(
-      `  Valid & Visible: ${COLORS.GREEN}${validAndVisibleDripLists}${COLORS.NC} (${validAndVisiblePercentage}%)`,
+      `  ${COLORS.GREEN_BOLD}✓ Valid & Visible: ${validAndVisibleDripLists}${COLORS.NC} (${validAndVisiblePercentage}%)`,
     );
 
     if (stats.invalid > 0) {

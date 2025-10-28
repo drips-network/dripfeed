@@ -40,7 +40,8 @@ export async function handleSubListMetadata(
   await validateRootAndParentExist(metadata, ctx);
 
   // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateSubList(metadata, cId, accountId, ctx, eventPointer);
 }
 

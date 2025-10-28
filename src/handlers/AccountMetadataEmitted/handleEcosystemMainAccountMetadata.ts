@@ -34,7 +34,8 @@ export async function handleEcosystemMainAccountMetadata(
   await verifyGitHubProjectSources(recipients, ctx);
 
   // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateEcosystemMainAccount(metadata, cId, accountId, blockNumber, ctx, eventPointer);
 }
 

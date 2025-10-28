@@ -37,7 +37,8 @@ export async function handleProjectMetadata(
   );
 
   // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
   await updateProject(metadata, cId, ctx, projectId, eventPointer);
 }
 
