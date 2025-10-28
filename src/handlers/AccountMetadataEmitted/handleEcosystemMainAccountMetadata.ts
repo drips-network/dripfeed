@@ -10,6 +10,7 @@ import { mapToAccountType } from '../../utils/mapToAccountType.js';
 import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
+import { validateSplits } from '../../utils/validateSplits.js';
 
 type EcosystemRecipient = EcosystemMainAccountMetadata['recipients'][number];
 
@@ -31,8 +32,10 @@ export async function handleEcosystemMainAccountMetadata(
   const recipients = metadata.recipients;
 
   await verifyGitHubProjectSources(recipients, ctx);
+
+  // Order matters! Splits must be written before validation.
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateEcosystemMainAccount(metadata, cId, accountId, blockNumber, ctx, eventPointer);
-  await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
 }
 
 async function verifyGitHubProjectSources(
@@ -70,6 +73,8 @@ async function updateEcosystemMainAccount(
       ? metadata.isVisible
       : true;
 
+  const { areSplitsValid } = await validateSplits(accountId, ctx.splitsRepo, ctx.contracts);
+
   // Update existing ecosystem metadata.
   const updates = {
     account_id: accountId,
@@ -78,6 +83,7 @@ async function updateEcosystemMainAccount(
     last_processed_ipfs_hash: cId,
     avatar: metadata.avatar.emoji,
     color: metadata.color,
+    is_valid: areSplitsValid,
   };
 
   const updateResult = await ctx.ecosystemsRepo.updateEcosystemMainAccount(updates, eventPointer);

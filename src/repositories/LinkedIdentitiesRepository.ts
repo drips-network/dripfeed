@@ -72,7 +72,7 @@ export class LinkedIdentitiesRepository {
       identity_type: data.identity_type,
       owner_address: null,
       owner_account_id: null,
-      are_splits_valid: false,
+      are_splits_valid: false, // Until it splits 100% to owner.
       is_visible: true,
       last_event_block: eventPointer.last_event_block,
       last_event_tx_index: eventPointer.last_event_tx_index,

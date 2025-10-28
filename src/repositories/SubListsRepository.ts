@@ -52,6 +52,25 @@ export class SubListsRepository {
   }
 
   /**
+   * Finds a sub-list by account ID.
+   *
+   * @param accountId - The sub-list account ID.
+   * @returns The sub-list if found, null otherwise.
+   */
+  async findById(accountId: string): Promise<SubList | null> {
+    const result = await this.client.query<SubList>(
+      `SELECT * FROM ${this.schema}.sub_lists WHERE account_id = $1`,
+      [accountId],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return subListSchema.parse(result.rows[0]);
+  }
+
+  /**
    * Ensures a sub-list exists, creating it if necessary or updating if it exists.
    *
    * Replayable: running with the same inputs yields the same persisted state.

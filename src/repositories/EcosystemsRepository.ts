@@ -121,13 +121,23 @@ export class EcosystemsRepository {
     return ecosystem;
   }
 
-  async getEcosystemMainAccount(accountId: string): Promise<EcosystemMainAccount | null> {
+  /**
+   * Finds an ecosystem main account by account ID.
+   *
+   * @param accountId - The ecosystem main account ID.
+   * @returns The ecosystem main account if found, null otherwise.
+   */
+  async findById(accountId: string): Promise<EcosystemMainAccount | null> {
     const result = await this.client.query<EcosystemMainAccount>(
       `SELECT * FROM ${this.schema}.ecosystem_main_accounts WHERE account_id = $1`,
       [accountId],
     );
 
-    return result.rows[0] || null;
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return ecosystemMainAccountSchema.parse(result.rows[0]);
   }
 
   /**

@@ -492,3 +492,26 @@ export const streamReceiverSeenEvents = pgTable(
     index('idx_stream_receiver_seen_events_account_id').on(table.account_id),
   ],
 );
+
+// Splits set events table.
+export const splitsSetEvents = pgTable(
+  'splits_set_events',
+  {
+    account_id: text('account_id').notNull(),
+    receivers_hash: text('receivers_hash').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_splits_set_events_account_id').on(table.account_id),
+    index('idx_splits_set_events_receivers_hash').on(table.receivers_hash),
+  ],
+);

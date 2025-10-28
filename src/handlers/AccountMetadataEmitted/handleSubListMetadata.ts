@@ -10,6 +10,7 @@ import { mapToAccountType } from '../../utils/mapToAccountType.js';
 import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
 import { assertValidReceiverType, type AccountType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
+import { validateSplits } from '../../utils/validateSplits.js';
 
 type SubListRecipient = SubListMetadata['recipients'][number];
 
@@ -37,8 +38,10 @@ export async function handleSubListMetadata(
 
   await verifyGitHubProjectSources(recipients, ctx);
   await validateRootAndParentExist(metadata, ctx);
+
+  // Order matters! Splits must be written before validation.
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateSubList(metadata, cId, accountId, ctx, eventPointer);
-  await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
 }
 
 async function verifyGitHubProjectSources(
@@ -67,13 +70,13 @@ async function validateRootAndParentExist(
   metadata: SubListMetadata,
   ctx: HandlerContext,
 ): Promise<void> {
-  const parent = await ctx.ecosystemsRepo.getEcosystemMainAccount(metadata.parent.accountId);
+  const parent = await ctx.ecosystemsRepo.findById(metadata.parent.accountId);
 
   if (!parent) {
     throw new Error(`Parent Ecosystem Main Account '${metadata.parent.accountId}' not found`);
   }
 
-  const root = await ctx.ecosystemsRepo.getEcosystemMainAccount(metadata.root.accountId);
+  const root = await ctx.ecosystemsRepo.findById(metadata.root.accountId);
 
   if (!root) {
     throw new Error(`Root Ecosystem Main Account '${metadata.root.accountId}' not found`);
@@ -90,10 +93,12 @@ async function updateSubList(
   const parentAccountType = getAccountTypeFromMetadata(metadata.parent.type);
   const rootAccountType = getAccountTypeFromMetadata(metadata.root.type);
 
+  const { areSplitsValid } = await validateSplits(accountId, ctx.splitsRepo, ctx.contracts);
+
   const subList = await ctx.subListsRepo.upsertSubList(
     {
       account_id: accountId,
-      is_valid: false,
+      is_valid: areSplitsValid,
       parent_account_id: metadata.parent.accountId,
       parent_account_type: parentAccountType,
       root_account_id: metadata.root.accountId,

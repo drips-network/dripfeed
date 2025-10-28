@@ -9,6 +9,7 @@ import type { HandlerContext } from '../EventHandler.js';
 import { logger } from '../../logger.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
+import { validateSplits } from '../../utils/validateSplits.js';
 
 export async function handleProjectMetadata(
   projectId: string,
@@ -34,8 +35,10 @@ export async function handleProjectMetadata(
     [...projectSplits, { accountId: projectId, source: metadata.source }],
     ctx.contracts,
   );
+
+  // Order matters! Splits must be written before validation.
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.  await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
   await updateProject(metadata, cId, ctx, projectId, eventPointer);
-  await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
 }
 
 async function updateProject(
@@ -45,11 +48,14 @@ async function updateProject(
   projectId: string,
   eventPointer: EventPointer,
 ) {
+  const { areSplitsValid } = await validateSplits(projectId, ctx.splitsRepo, ctx.contracts);
+
   const updates: {
     url: string;
     forge: 'github';
     color: string;
     last_processed_ipfs_hash: string;
+    is_valid: boolean;
     is_visible?: boolean;
     emoji?: string | null;
     avatar_cid?: string | null;
@@ -58,6 +64,7 @@ async function updateProject(
     forge: metadata.source.forge,
     color: metadata.color,
     last_processed_ipfs_hash: cId,
+    is_valid: areSplitsValid,
   };
 
   if ('isVisible' in metadata) {

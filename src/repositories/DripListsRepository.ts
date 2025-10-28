@@ -50,6 +50,25 @@ export class DripListsRepository {
   }
 
   /**
+   * Finds a drip list by account ID.
+   *
+   * @param accountId - The drip list account ID.
+   * @returns The drip list if found, null otherwise.
+   */
+  async findById(accountId: string): Promise<DripList | null> {
+    const result = await this.client.query<DripList>(
+      `SELECT * FROM ${this.schema}.drip_lists WHERE account_id = $1`,
+      [accountId],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return dripListSchema.parse(result.rows[0]);
+  }
+
+  /**
    * Ensures a drip list exists, creating it if necessary or updating if it exists.
    *
    * Replayable: running with the same inputs yields the same persisted state.

@@ -15,6 +15,7 @@ import { SubListsRepository } from '../repositories/SubListsRepository.js';
 import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
+import { SplitsSetEventsRepository } from '../repositories/SplitsSetEventsRepository.js';
 import { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
 import { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
@@ -196,6 +197,7 @@ export class EventProcessor {
       splitEventsRepo: new SplitEventsRepository(client, this._schema),
       squeezedStreamsEventsRepo: new SqueezedStreamsEventsRepository(client, this._schema),
       streamsSetEventsRepo: new StreamsSetEventsRepository(client, this._schema),
+      splitsSetEventsRepo: new SplitsSetEventsRepository(client, this._schema),
       accountMetadataEmittedEventsRepo: new AccountMetadataEmittedEventsRepository(
         client,
         this._schema,

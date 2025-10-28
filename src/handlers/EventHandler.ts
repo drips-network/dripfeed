@@ -9,6 +9,7 @@ import type { SubListsRepository } from '../repositories/SubListsRepository.js';
 import type { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
 import type { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
 import type { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
+import type { SplitsSetEventsRepository } from '../repositories/SplitsSetEventsRepository.js';
 import type { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
 import type { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
@@ -58,6 +59,7 @@ export type HandlerContext = {
   readonly splitEventsRepo: SplitEventsRepository;
   readonly squeezedStreamsEventsRepo: SqueezedStreamsEventsRepository;
   readonly streamsSetEventsRepo: StreamsSetEventsRepository;
+  readonly splitsSetEventsRepo: SplitsSetEventsRepository;
   readonly accountMetadataEmittedEventsRepo: AccountMetadataEmittedEventsRepository;
   readonly streamReceiverSeenEventsRepo: StreamReceiverSeenEventsRepository;
   readonly metadataService: MetadataService;

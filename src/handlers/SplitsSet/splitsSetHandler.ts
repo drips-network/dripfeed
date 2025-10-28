@@ -8,6 +8,7 @@ import { isImmutableSplitsDriverId } from '../../utils/immutableSplitsDriverUtil
 import { toEventPointer } from '../../repositories/types.js';
 import { unreachable } from '../../utils/unreachable.js';
 import type { EventHandler, HandlerEvent } from '../EventHandler.js';
+import { validateSplits } from '../../utils/validateSplits.js';
 
 import { isSplittingToOwnerOnly } from './isSplittingToOwnerOnly.js';
 
@@ -16,40 +17,49 @@ type SplitsSetEvent = HandlerEvent & {
 };
 
 export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx) => {
-  const { accountId, receiversHash } = event.args;
+  const { accountId, receiversHash: splitsHashFromEvent } = event.args;
   const {
     projectsRepo,
     linkedIdentitiesRepo,
     dripListsRepo,
     ecosystemsRepo,
     subListsRepo,
+    splitsRepo,
+    splitsSetEventsRepo,
     contracts,
   } = ctx;
 
-  // "Unsafe" call is acceptable here for "valid NOW" semantics:
+  await splitsSetEventsRepo.upsert({
+    account_id: accountId.toString(),
+    receivers_hash: splitsHashFromEvent,
+    log_index: event.logIndex,
+    block_number: event.blockNumber,
+    block_timestamp: event.blockTimestamp,
+    transaction_hash: event.txHash,
+  });
+
+  // "Unsafe" calls are acceptable here for "valid NOW" semantics:
   // - Non-deterministic: same historic event may produce different results if reprocessed later
   // - Eventual consistency: after catch-up, only the latest SplitsSet has is_valid=true
-  // - Acceptable staleness: RPC query may lag 1-2 blocks behind chain tip
   // This trade-off is intentional to validate current on-chain state, not historic state.
-  const onChainSplits = await contracts.drips.read.splitsHash([accountId]);
 
-  const isCurrentOnChain = onChainSplits === receiversHash;
   const accountIdStr = accountId.toString();
   const eventPointer = toEventPointer(event);
 
   if (isOrcidAccount(accountIdStr)) {
     const linkedIdentity = await linkedIdentitiesRepo.getLinkedIdentity(accountIdStr);
     if (!linkedIdentity || !linkedIdentity.owner_account_id) {
-      unreachable(
+      throw new Error(
         `ORCID with account ID ${accountIdStr} not found or has no owner while processing splits but was expected to exist`,
       );
     }
 
+    const onChainCurrentSplitsHash = await contracts.drips.read.splitsHash([accountId]);
     const areSplitsValid =
-      isCurrentOnChain &&
+      onChainCurrentSplitsHash === splitsHashFromEvent &&
       (await isSplittingToOwnerOnly(
         linkedIdentity.owner_account_id,
-        onChainSplits,
+        onChainCurrentSplitsHash,
         contracts.drips,
       ));
 
@@ -62,107 +72,155 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     );
 
     if (!result.success) {
-      unreachable(
-        `ORCID with account ID ${accountIdStr} not found while processing splits but was previously found`,
-      );
+      unreachable(`ORCID with account ID ${accountIdStr} disappeared during splits validation`);
     }
 
     logger.info('orcid_splits_validity_updated', {
       accountId: accountIdStr,
-      splitsHash: receiversHash,
-      isCurrentOnChain,
+      receiversHashFromEvent: splitsHashFromEvent,
+      onChainCurrentSplitsHash,
       areSplitsValid,
       ownerAccountId: linkedIdentity.owner_account_id,
       identityType: result.data.identity_type,
     });
-
-    return;
   } else if (isProject(accountIdStr)) {
+    const project = await ctx.projectsRepo.findById(accountIdStr);
+    if (!project) {
+      throw new Error(
+        `Project with account ID ${accountIdStr} not found while processing splits but was expected to exist`,
+      );
+    }
+
+    const { dbSplitsHash, onChainCurrentSplitsHash, areSplitsValid } = await validateSplits(
+      accountIdStr,
+      splitsRepo,
+      contracts,
+    );
+
     const result = await projectsRepo.updateProject(
       {
         account_id: accountIdStr,
-        is_valid: isCurrentOnChain,
+        is_valid: areSplitsValid,
       },
       eventPointer,
     );
 
     if (!result.success) {
-      unreachable(
-        `Project with account ID ${accountIdStr} not found while processing splits but it was expected to exist`,
-      );
+      unreachable(`Project with account ID ${accountIdStr} disappeared during splits validation`);
     }
 
     logger.info('project_splits_validity_updated', {
       accountId: accountIdStr,
-      splitsHash: receiversHash,
-      isValid: isCurrentOnChain,
       projectName: result.data.name,
+      receiversHashFromEvent: splitsHashFromEvent,
+      dbSplitsHash,
+      onChainCurrentSplitsHash,
+      areSplitsValid,
     });
-
-    return;
   } else if (isNftDriverId(accountIdStr)) {
-    const dripListResult = await dripListsRepo.updateDripList(
-      {
-        account_id: accountIdStr,
-        is_valid: isCurrentOnChain,
-      },
-      eventPointer,
+    const [dripList, ecosystem] = await Promise.all([
+      dripListsRepo.findById(accountIdStr),
+      ecosystemsRepo.findById(accountIdStr),
+    ]);
+
+    if (!dripList && !ecosystem) {
+      throw new Error(
+        `No drip list or ecosystem found for NFT Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
+      );
+    }
+
+    if (dripList && ecosystem) {
+      unreachable(
+        `Both Drip List and Ecosystem Main Account found for account ID '${accountIdStr}'`,
+      );
+    }
+
+    const { dbSplitsHash, onChainCurrentSplitsHash, areSplitsValid } = await validateSplits(
+      accountIdStr,
+      splitsRepo,
+      contracts,
     );
 
-    if (dripListResult.success) {
+    if (dripList) {
+      const result = await dripListsRepo.updateDripList(
+        {
+          account_id: accountIdStr,
+          is_valid: areSplitsValid,
+        },
+        eventPointer,
+      );
+
+      if (!result.success) {
+        unreachable(
+          `Drip List with account ID ${accountIdStr} disappeared during splits validation`,
+        );
+      }
+
       logger.info('drip_list_splits_validity_updated', {
         accountId: accountIdStr,
-        splitsHash: receiversHash,
-        isValid: isCurrentOnChain,
-        dripListName: dripListResult.data.name,
+        dripListName: result.data.name,
+        receiversHashFromEvent: splitsHashFromEvent,
+        dbSplitsHash,
+        onChainCurrentSplitsHash,
+        areSplitsValid,
       });
+    } else {
+      const result = await ecosystemsRepo.updateEcosystemMainAccount(
+        {
+          account_id: accountIdStr,
+          is_valid: areSplitsValid,
+        },
+        eventPointer,
+      );
 
-      return;
-    }
+      if (!result.success) {
+        unreachable(
+          `Ecosystem with account ID ${accountIdStr} disappeared during splits validation`,
+        );
+      }
 
-    const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount(
-      {
-        account_id: accountIdStr,
-        is_valid: isCurrentOnChain,
-      },
-      eventPointer,
-    );
-
-    if (ecosystemResult.success) {
       logger.info('ecosystem_splits_validity_updated', {
         accountId: accountIdStr,
-        splitsHash: receiversHash,
-        isValid: isCurrentOnChain,
+        ecosystemName: result.data.name,
+        receiversHashFromEvent: splitsHashFromEvent,
+        dbSplitsHash,
+        onChainCurrentSplitsHash,
+        areSplitsValid,
       });
-
-      return;
+    }
+  } else if (isImmutableSplitsDriverId(accountIdStr)) {
+    const subList = await subListsRepo.findById(accountIdStr);
+    if (!subList) {
+      unreachable(
+        `No sub list found for Immutable Splits Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
+      );
     }
 
-    unreachable(
-      `No drip list or ecosystem found for NFT Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
+    const { dbSplitsHash, onChainCurrentSplitsHash, areSplitsValid } = await validateSplits(
+      accountIdStr,
+      splitsRepo,
+      contracts,
     );
-  } else if (isImmutableSplitsDriverId(accountIdStr)) {
-    const subListResult = await subListsRepo.updateSubList(
+
+    const result = await subListsRepo.updateSubList(
       {
         account_id: accountIdStr,
-        is_valid: isCurrentOnChain,
+        is_valid: areSplitsValid,
       },
       eventPointer,
     );
 
-    if (subListResult.success) {
-      logger.info('sub_list_splits_validity_updated', {
-        accountId: accountIdStr,
-        splitsHash: receiversHash,
-        isValid: isCurrentOnChain,
-      });
-
-      return;
+    if (!result.success) {
+      unreachable(`Sub List with account ID ${accountIdStr} disappeared during splits validation`);
     }
 
-    unreachable(
-      `No sub list found for Immutable Splits Driver account ID ${accountIdStr} while processing splits but was expected to exist`,
-    );
+    logger.info('sub_list_splits_validity_updated', {
+      accountId: accountIdStr,
+      receiversHashFromEvent: splitsHashFromEvent,
+      dbSplitsHash,
+      onChainCurrentSplitsHash,
+      areSplitsValid,
+    });
   } else {
     logger.warn('unsupported_splits_set_account_type', { accountId: accountIdStr });
   }

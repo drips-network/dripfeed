@@ -77,7 +77,7 @@ export class ProjectsRepository {
       owner_address: null,
       owner_account_id: null,
       verification_status: 'unclaimed' as ProjectStatus,
-      is_valid: false,
+      is_valid: true, // no splits yet, so valid by default
       is_visible: true,
       last_event_block: eventPointer.last_event_block,
       last_event_tx_index: eventPointer.last_event_tx_index,
@@ -116,6 +116,25 @@ export class ProjectsRepository {
 
     const project = projectSchema.parse(result.rows[0]);
     return project;
+  }
+
+  /**
+   * Finds a project by its account ID.
+   *
+   * @param accountId - Project account ID.
+   * @returns The project if found, null otherwise.
+   */
+  async findById(accountId: string): Promise<Project | null> {
+    const result = await this.client.query<Project>(
+      `SELECT * FROM ${this.schema}.projects WHERE account_id = $1`,
+      [accountId],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return projectSchema.parse(result.rows[0]);
   }
 
   /**

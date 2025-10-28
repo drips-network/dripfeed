@@ -10,6 +10,7 @@ import { mapToAccountType } from '../../utils/mapToAccountType.js';
 import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
+import { validateSplits } from '../../utils/validateSplits.js';
 
 type DripListReceiver = Extract<
   DripListMetadata,
@@ -38,7 +39,9 @@ export async function handleDripListMetadata(
   const splits = extractReceivers(metadata);
 
   await verifyGitHubProjectSources(splits, ctx);
-  await updateDripList(metadata, cId, dripListId, blockNumber, ctx, eventPointer);
+
+  // Order matters! Splits must be written before validation.
+  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
   await updateDripListSplits(
     dripListId.toString(),
     blockTimestamp,
@@ -46,6 +49,7 @@ export async function handleDripListMetadata(
     ctx.splitsRepo,
     eventPointer,
   );
+  await updateDripList(metadata, cId, dripListId, blockNumber, ctx, eventPointer);
 }
 
 function extractReceivers(metadata: DripListMetadata): Receiver[] {
@@ -95,6 +99,8 @@ async function updateDripList(
       ? metadata.isVisible
       : true;
 
+  const { areSplitsValid } = await validateSplits(accountId, ctx.splitsRepo, ctx.contracts);
+
   // Update existing drip list metadata.
   const updates = {
     account_id: accountId,
@@ -104,6 +110,7 @@ async function updateDripList(
       'latestVotingRoundId' in metadata ? metadata.latestVotingRoundId || null : null,
     last_processed_ipfs_hash: cId,
     is_visible: isVisible,
+    is_valid: areSplitsValid,
   };
 
   const updateResult = await ctx.dripListsRepo.updateDripList(updates, eventPointer);
