@@ -263,6 +263,19 @@ CREATE TABLE "sub_lists" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "transfer_events" (
+	"from" text NOT NULL,
+	"to" text NOT NULL,
+	"token_id" text NOT NULL,
+	"log_index" integer NOT NULL,
+	"block_number" bigint NOT NULL,
+	"block_timestamp" timestamp with time zone NOT NULL,
+	"transaction_hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "transfer_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+);
+--> statement-breakpoint
 CREATE INDEX "idx_account_metadata_emitted_events_account_id" ON "account_metadata_emitted_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_block_hashes_lookup" ON "_block_hashes" USING btree ("chain_id","block_number" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_drip_lists_owner_address" ON "drip_lists" USING btree ("owner_address");--> statement-breakpoint
@@ -298,4 +311,7 @@ CREATE INDEX "idx_streams_set_events_receivers_hash" ON "streams_set_events" USI
 CREATE INDEX "idx_streams_set_events_account_id" ON "streams_set_events" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_parent" ON "sub_lists" USING btree ("parent_account_id");--> statement-breakpoint
 CREATE INDEX "idx_sub_lists_root" ON "sub_lists" USING btree ("root_account_id");--> statement-breakpoint
-CREATE INDEX "idx_sub_lists_event_pointer" ON "sub_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");
+CREATE INDEX "idx_sub_lists_event_pointer" ON "sub_lists" USING btree ("last_event_block","last_event_tx_index","last_event_log_index");--> statement-breakpoint
+CREATE INDEX "idx_transfer_events_from" ON "transfer_events" USING btree ("from");--> statement-breakpoint
+CREATE INDEX "idx_transfer_events_to" ON "transfer_events" USING btree ("to");--> statement-breakpoint
+CREATE INDEX "idx_transfer_events_token_id" ON "transfer_events" USING btree ("token_id");

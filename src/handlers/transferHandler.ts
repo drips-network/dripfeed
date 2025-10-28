@@ -18,10 +18,21 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
     dripListsRepo,
     ecosystemsRepo,
     pendingNftTransfersRepo,
+    transferEventsRepo,
     contracts,
     visibilityThresholdBlockNumber,
     cacheInvalidationService,
   } = ctx;
+
+  await transferEventsRepo.upsert({
+    from,
+    to,
+    token_id: tokenId.toString(),
+    log_index: event.logIndex,
+    block_number: event.blockNumber,
+    block_timestamp: event.blockTimestamp,
+    transaction_hash: event.txHash,
+  });
 
   const eventPointer = toEventPointer(event);
   const accountId = tokenId.toString();

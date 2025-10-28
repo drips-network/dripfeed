@@ -515,3 +515,28 @@ export const splitsSetEvents = pgTable(
     index('idx_splits_set_events_receivers_hash').on(table.receivers_hash),
   ],
 );
+
+// Transfer events table.
+export const transferEvents = pgTable(
+  'transfer_events',
+  {
+    from: text('from').notNull(),
+    to: text('to').notNull(),
+    token_id: text('token_id').notNull(),
+    log_index: integer('log_index').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    transaction_hash: text('transaction_hash').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.transaction_hash, table.log_index),
+    index('idx_transfer_events_from').on(table.from),
+    index('idx_transfer_events_to').on(table.to),
+    index('idx_transfer_events_token_id').on(table.token_id),
+  ],
+);
