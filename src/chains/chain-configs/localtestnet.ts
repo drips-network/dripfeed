@@ -2,7 +2,7 @@ import type { ChainConfig } from '../loadChainConfig.js';
 import * as c from '../contractConfigFactories.js';
 
 export const localtestnetConfig = {
-  chainId: 1,
+  chainId: 31337,
   startBlock: 1,
   visibilityThresholdBlockNumber: 21335439,
   contracts: [
