@@ -70,7 +70,7 @@ const shutdown = async (signal: string): Promise<void> => {
     // Cleanup pool after indexer stops.
     await closePool();
     logger.info('shutdown_complete', { signal });
-    process.exit(0);
+    process.exit(signal === 'ERROR' ? 1 : 0);
   } catch (err) {
     const error = err as Error;
     logger.error('shutdown_failed', { signal, error: error.message, stack: error.stack });

@@ -33,7 +33,6 @@ export class LockManager {
       const acquired = rows[0]?.acquired ?? false;
 
       if (!acquired) {
-        lockConn.release();
         throw new Error(
           `Another indexer is already running for chain=${this._chainId} schema=${this._schema}. Cannot acquire advisory lock.`,
         );
@@ -42,7 +41,9 @@ export class LockManager {
       this._lockConn = lockConn;
       logger.info('✓ Lock acquired: ready to index\n');
     } catch (error) {
-      lockConn.release();
+      if (this._lockConn === null) {
+        lockConn.release();
+      }
       throw error;
     }
   }

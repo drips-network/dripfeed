@@ -290,6 +290,13 @@ export function createIndexer(
     chain: { id: config.chain.id } as Chain,
     transport: http(config.chain.rpcUrl, {
       timeout: 30000,
+      fetchOptions: config.chain.rpcAccessToken
+        ? {
+            headers: {
+              Authorization: `Bearer ${config.chain.rpcAccessToken}`,
+            },
+          }
+        : undefined,
     }),
   });
 

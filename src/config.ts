@@ -13,6 +13,7 @@ const configSchema = z.object({
   chain: z.object({
     id: z.number().int().positive().optional(), // Optional during parse
     rpcUrl: z.url(),
+    rpcAccessToken: z.string().optional(),
     confirmations: z.number().int().nonnegative().default(1),
     startBlock: z.number().int().nonnegative().optional(), // Optional during parse
     visibilityThresholdBlockNumber: z.number().int().nonnegative().optional(), // Optional during parse
@@ -61,6 +62,7 @@ function loadConfig(): Config {
     },
     chain: {
       rpcUrl: process.env.RPC_URL,
+      rpcAccessToken: process.env.RPC_ACCESS_TOKEN,
       confirmations: process.env.CONFIRMATIONS
         ? parseInt(process.env.CONFIRMATIONS, 10)
         : undefined,
