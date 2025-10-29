@@ -123,6 +123,38 @@ export class ProjectsRepository {
   }
 
   /**
+   * Ensures a project exists without modifying it if already present.
+   *
+   * If no project exists, creates one in unclaimed state.
+   * If a project already exists, returns it unchanged.
+   *
+   * Use this when you need to reference a project in splits/lists but don't want
+   * to reset already-claimed projects back to unclaimed.
+   *
+   * Replayable: running with the same inputs yields the same persisted state.
+   *
+   * @param data.account_id - Project account ID.
+   * @param data.forge - Source forge.
+   * @param data.name - Project name (`<owner>/<repo>`).
+   * @param data.url - Project URL.
+   * @param eventPointer - Blockchain event that triggered this operation.
+   * @returns The persisted project row (existing or newly created).
+   */
+  async ensureProjectExists(
+    data: EnsureUnclaimedProject,
+    eventPointer: EventPointer,
+  ): Promise<Project> {
+    ensureUnclaimedProjectInputSchema.parse(data);
+
+    const existing = await this.findById(data.account_id);
+    if (existing) {
+      return existing;
+    }
+
+    return this.ensureUnclaimedProject(data, eventPointer);
+  }
+
+  /**
    * Finds a project by its account ID.
    *
    * @param accountId - Project account ID.

@@ -14,8 +14,11 @@ type ReceiverWithSource = {
 };
 
 /**
- * Ensures that a project exists in the database for each receiver.
- * Creates unclaimed project entries for any receivers that don't have a corresponding project.
+ * Ensures a project exists without modifying it if already present.
+ *
+ * Event pointer tracking: If the project exists, its event pointer reflects
+ * the last event that MODIFIED it, not this reference. This is intentional
+ * to distinguish mutations from mere references.
  */
 export async function ensureProjectReceivers(
   receivers: ReceiverWithSource[],
@@ -27,7 +30,7 @@ export async function ensureProjectReceivers(
       const { forge, ownerName, repoName } = receiver.source;
       const name = `${ownerName}/${repoName}`;
 
-      return projectsRepo.ensureUnclaimedProject(
+      return projectsRepo.ensureProjectExists(
         {
           account_id: receiver.accountId,
           forge,
