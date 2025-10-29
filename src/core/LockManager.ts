@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import { logger } from '../logger.js';
 import { getLockId } from '../utils/advisoryLock.js';
+import { sleep } from '../utils/sleep.js';
 
 /**
  * Manages PostgreSQL advisory locks for single-indexer execution.
@@ -23,29 +24,47 @@ export class LockManager {
    */
   async acquire(): Promise<void> {
     const lockId = this._createLockId();
-    const lockConn = await this._pool.connect();
+    const maxAttempts = 2; // Initial attempt + 1 retry for deployment handoff.
+    const retryDelayMs = 3000;
 
-    try {
-      const { rows } = await lockConn.query<{ acquired: boolean }>(
-        'SELECT pg_try_advisory_lock($1) as acquired',
-        [lockId],
-      );
-      const acquired = rows[0]?.acquired ?? false;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const lockConn = await this._pool.connect();
 
-      if (!acquired) {
-        throw new Error(
-          `Another indexer is already running for chain=${this._chainId} schema=${this._schema}. Cannot acquire advisory lock.`,
+      try {
+        const { rows } = await lockConn.query<{ acquired: boolean }>(
+          'SELECT pg_try_advisory_lock($1) as acquired',
+          [lockId],
         );
-      }
+        const acquired = rows[0]?.acquired ?? false;
 
-      this._lockConn = lockConn;
-      logger.info('✓ Lock acquired: ready to index\n');
-    } catch (error) {
-      if (this._lockConn === null) {
+        if (acquired) {
+          this._lockConn = lockConn;
+          logger.info('✓ Lock acquired: ready to index\n');
+          return;
+        }
+
         lockConn.release();
+
+        if (attempt < maxAttempts) {
+          logger.warn('lock_busy_retrying', {
+            attempt,
+            retryInMs: retryDelayMs,
+            chain: this._chainId,
+            schema: this._schema,
+          });
+          await sleep(retryDelayMs);
+        }
+      } catch (error) {
+        if (this._lockConn === null) {
+          lockConn.release();
+        }
+        throw error;
       }
-      throw error;
     }
+
+    throw new Error(
+      `Another indexer is already running for chain=${this._chainId} schema=${this._schema}. Cannot acquire advisory lock.`,
+    );
   }
 
   /**
