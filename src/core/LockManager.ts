@@ -24,8 +24,8 @@ export class LockManager {
    */
   async acquire(): Promise<void> {
     const lockId = this._createLockId();
-    const maxAttempts = 2; // Initial attempt + 1 retry for deployment handoff.
-    const retryDelayMs = 3000;
+    const maxAttempts = 5; // Initial attempt + 4 retries for deployment handoff.
+    const retryDelayMs = 2000;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const lockConn = await this._pool.connect();
