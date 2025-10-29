@@ -5,16 +5,16 @@ CREATE TYPE linked_identity_types AS ENUM('orcid');--> statement-breakpoint
 CREATE TYPE verification_status AS ENUM('claimed', 'unclaimed', 'pending_metadata');--> statement-breakpoint
 CREATE TYPE relationship_type AS ENUM('project_maintainer', 'project_dependency', 'drip_list_receiver', 'ecosystem_receiver', 'sub_list_link', 'sub_list_receiver', 'identity_owner');--> statement-breakpoint
 CREATE TABLE "account_metadata_emitted_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"key" text NOT NULL,
 	"value" text NOT NULL,
 	"account_id" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "account_metadata_emitted_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "account_metadata_emitted_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "_block_hashes" (
@@ -23,7 +23,7 @@ CREATE TABLE "_block_hashes" (
 	"block_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "_block_hashes_chain_id_block_number_unique" UNIQUE("chain_id","block_number")
+	CONSTRAINT "_block_hashes_chain_id_block_number_pk" PRIMARY KEY("chain_id","block_number")
 );
 --> statement-breakpoint
 CREATE TABLE "_cursor" (
@@ -94,17 +94,17 @@ CREATE TABLE "_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "given_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"receiver" text NOT NULL,
 	"erc20" text NOT NULL,
 	"amt" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "given_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "given_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "linked_identities" (
@@ -161,17 +161,17 @@ CREATE TABLE "projects" (
 );
 --> statement-breakpoint
 CREATE TABLE "split_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"receiver" text NOT NULL,
 	"erc20" text NOT NULL,
 	"amt" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "split_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "split_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "splits_receivers" (
@@ -193,59 +193,59 @@ CREATE TABLE "splits_receivers" (
 );
 --> statement-breakpoint
 CREATE TABLE "splits_set_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"receivers_hash" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "splits_set_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "splits_set_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "squeezed_streams_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"erc20" text NOT NULL,
 	"sender_id" text NOT NULL,
 	"amount" text NOT NULL,
 	"streams_history_hashes" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "squeezed_streams_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "squeezed_streams_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "stream_receiver_seen_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"config" text NOT NULL,
 	"receivers_hash" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "stream_receiver_seen_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "stream_receiver_seen_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "streams_set_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"account_id" text NOT NULL,
 	"erc20" text NOT NULL,
 	"receivers_hash" text NOT NULL,
 	"streams_history_hash" text NOT NULL,
 	"balance" text NOT NULL,
 	"max_end" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "streams_set_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "streams_set_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE TABLE "sub_lists" (
@@ -264,16 +264,16 @@ CREATE TABLE "sub_lists" (
 );
 --> statement-breakpoint
 CREATE TABLE "transfer_events" (
+	"transaction_hash" text NOT NULL,
+	"log_index" integer NOT NULL,
 	"from" text NOT NULL,
 	"to" text NOT NULL,
 	"token_id" text NOT NULL,
-	"log_index" integer NOT NULL,
 	"block_number" bigint NOT NULL,
 	"block_timestamp" timestamp with time zone NOT NULL,
-	"transaction_hash" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "transfer_events_transaction_hash_log_index_unique" UNIQUE("transaction_hash","log_index")
+	CONSTRAINT "transfer_events_transaction_hash_log_index_pk" PRIMARY KEY("transaction_hash","log_index")
 );
 --> statement-breakpoint
 CREATE INDEX "idx_account_metadata_emitted_events_account_id" ON "account_metadata_emitted_events" USING btree ("account_id");--> statement-breakpoint

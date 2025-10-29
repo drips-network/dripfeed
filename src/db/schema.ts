@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -100,7 +101,7 @@ export const blockHashes = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.chain_id, table.block_number),
+    primaryKey({ columns: [table.chain_id, table.block_number] }),
     index('idx_block_hashes_lookup').on(table.chain_id, table.block_number.desc()),
   ],
 );
@@ -351,14 +352,14 @@ export const splitsReceivers = pgTable(
 export const givenEvents = pgTable(
   'given_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     account_id: text('account_id').notNull(),
     receiver: text('receiver').notNull(),
     erc20: text('erc20').notNull(),
     amt: text('amt').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -366,7 +367,7 @@ export const givenEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_given_events_account_id').on(table.account_id),
     index('idx_given_events_receiver').on(table.receiver),
     index('idx_given_events_erc20').on(table.erc20),
@@ -377,14 +378,14 @@ export const givenEvents = pgTable(
 export const splitEvents = pgTable(
   'split_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     account_id: text('account_id').notNull(),
     receiver: text('receiver').notNull(),
     erc20: text('erc20').notNull(),
     amt: text('amt').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -392,7 +393,7 @@ export const splitEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_split_events_receiver').on(table.receiver),
     index('idx_split_events_account_id_receiver').on(table.account_id, table.receiver),
   ],
@@ -402,38 +403,15 @@ export const splitEvents = pgTable(
 export const squeezedStreamsEvents = pgTable(
   'squeezed_streams_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     account_id: text('account_id').notNull(),
     erc20: text('erc20').notNull(),
     sender_id: text('sender_id').notNull(),
     amount: text('amount').notNull(),
     streams_history_hashes: text('streams_history_hashes').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
-    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [unique().on(table.transaction_hash, table.log_index)],
-);
-
-// Streams set events table.
-export const streamsSetEvents = pgTable(
-  'streams_set_events',
-  {
-    account_id: text('account_id').notNull(),
-    erc20: text('erc20').notNull(),
-    receivers_hash: text('receivers_hash').notNull(),
-    streams_history_hash: text('streams_history_hash').notNull(),
-    balance: text('balance').notNull(),
-    max_end: text('max_end').notNull(),
-    log_index: integer('log_index').notNull(),
-    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
-    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -441,7 +419,32 @@ export const streamsSetEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
+  ],
+);
+
+// Streams set events table.
+export const streamsSetEvents = pgTable(
+  'streams_set_events',
+  {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
+    account_id: text('account_id').notNull(),
+    erc20: text('erc20').notNull(),
+    receivers_hash: text('receivers_hash').notNull(),
+    streams_history_hash: text('streams_history_hash').notNull(),
+    balance: text('balance').notNull(),
+    max_end: text('max_end').notNull(),
+    block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
+    block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_streams_set_events_receivers_hash').on(table.receivers_hash),
     index('idx_streams_set_events_account_id').on(table.account_id),
   ],
@@ -451,13 +454,13 @@ export const streamsSetEvents = pgTable(
 export const accountMetadataEmittedEvents = pgTable(
   'account_metadata_emitted_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     key: text('key').notNull(),
     value: text('value').notNull(),
     account_id: text('account_id').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -465,7 +468,7 @@ export const accountMetadataEmittedEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_account_metadata_emitted_events_account_id').on(table.account_id),
   ],
 );
@@ -474,13 +477,13 @@ export const accountMetadataEmittedEvents = pgTable(
 export const streamReceiverSeenEvents = pgTable(
   'stream_receiver_seen_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     account_id: text('account_id').notNull(),
     config: text('config').notNull(),
     receivers_hash: text('receivers_hash').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -488,7 +491,7 @@ export const streamReceiverSeenEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_stream_receiver_seen_events_account_id').on(table.account_id),
   ],
 );
@@ -497,12 +500,12 @@ export const streamReceiverSeenEvents = pgTable(
 export const splitsSetEvents = pgTable(
   'splits_set_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     account_id: text('account_id').notNull(),
     receivers_hash: text('receivers_hash').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -510,7 +513,7 @@ export const splitsSetEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_splits_set_events_account_id').on(table.account_id),
     index('idx_splits_set_events_receivers_hash').on(table.receivers_hash),
   ],
@@ -520,13 +523,13 @@ export const splitsSetEvents = pgTable(
 export const transferEvents = pgTable(
   'transfer_events',
   {
+    transaction_hash: text('transaction_hash').notNull(),
+    log_index: integer('log_index').notNull(),
     from: text('from').notNull(),
     to: text('to').notNull(),
     token_id: text('token_id').notNull(),
-    log_index: integer('log_index').notNull(),
     block_number: bigint('block_number', { mode: 'bigint' }).notNull(),
     block_timestamp: timestamp('block_timestamp', { withTimezone: true }).notNull(),
-    transaction_hash: text('transaction_hash').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -534,7 +537,7 @@ export const transferEvents = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    unique().on(table.transaction_hash, table.log_index),
+    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
     index('idx_transfer_events_from').on(table.from),
     index('idx_transfer_events_to').on(table.to),
     index('idx_transfer_events_token_id').on(table.token_id),

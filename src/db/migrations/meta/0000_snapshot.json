@@ -1,5 +1,5 @@
 {
-  "id": "7f97f28d-3181-45b5-9e6f-e3dd9bc0662f",
+  "id": "ed3a7ed5-8bf2-4a29-9b86-dd309357b7e7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -8,6 +8,18 @@
       "name": "account_metadata_emitted_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "key": {
           "name": "key",
           "type": "text",
@@ -26,12 +38,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -41,12 +47,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -83,17 +83,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "account_metadata_emitted_events_transaction_hash_log_index_unique": {
-          "name": "account_metadata_emitted_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "account_metadata_emitted_events_transaction_hash_log_index_pk": {
+          "name": "account_metadata_emitted_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -159,17 +158,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "_block_hashes_chain_id_block_number_unique": {
-          "name": "_block_hashes_chain_id_block_number_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "_block_hashes_chain_id_block_number_pk": {
+          "name": "_block_hashes_chain_id_block_number_pk",
           "columns": [
             "chain_id",
             "block_number"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -729,6 +727,18 @@
       "name": "given_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -753,12 +763,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -768,12 +772,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -840,17 +838,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "given_events_transaction_hash_log_index_unique": {
-          "name": "given_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "given_events_transaction_hash_log_index_pk": {
+          "name": "given_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1345,6 +1342,18 @@
       "name": "split_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -1369,12 +1378,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -1384,12 +1387,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -1447,17 +1444,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "split_events_transaction_hash_log_index_unique": {
-          "name": "split_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "split_events_transaction_hash_log_index_pk": {
+          "name": "split_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1663,6 +1659,18 @@
       "name": "splits_set_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -1675,12 +1683,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -1690,12 +1692,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -1747,17 +1743,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "splits_set_events_transaction_hash_log_index_unique": {
-          "name": "splits_set_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "splits_set_events_transaction_hash_log_index_pk": {
+          "name": "splits_set_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1766,6 +1761,18 @@
       "name": "squeezed_streams_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -1796,12 +1803,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -1811,12 +1812,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -1837,17 +1832,16 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "squeezed_streams_events_transaction_hash_log_index_unique": {
-          "name": "squeezed_streams_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "squeezed_streams_events_transaction_hash_log_index_pk": {
+          "name": "squeezed_streams_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1856,6 +1850,18 @@
       "name": "stream_receiver_seen_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -1874,12 +1880,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -1889,12 +1889,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -1931,17 +1925,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "stream_receiver_seen_events_transaction_hash_log_index_unique": {
-          "name": "stream_receiver_seen_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "stream_receiver_seen_events_transaction_hash_log_index_pk": {
+          "name": "stream_receiver_seen_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1950,6 +1943,18 @@
       "name": "streams_set_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "text",
@@ -1986,12 +1991,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -2001,12 +2000,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -2058,17 +2051,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "streams_set_events_transaction_hash_log_index_unique": {
-          "name": "streams_set_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "streams_set_events_transaction_hash_log_index_pk": {
+          "name": "streams_set_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2224,6 +2216,18 @@
       "name": "transfer_events",
       "schema": "",
       "columns": {
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "from": {
           "name": "from",
           "type": "text",
@@ -2242,12 +2246,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "block_number": {
           "name": "block_number",
           "type": "bigint",
@@ -2257,12 +2255,6 @@
         "block_timestamp": {
           "name": "block_timestamp",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -2329,17 +2321,16 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "transfer_events_transaction_hash_log_index_unique": {
-          "name": "transfer_events_transaction_hash_log_index_unique",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "transfer_events_transaction_hash_log_index_pk": {
+          "name": "transfer_events_transaction_hash_log_index_pk",
           "columns": [
             "transaction_hash",
             "log_index"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
