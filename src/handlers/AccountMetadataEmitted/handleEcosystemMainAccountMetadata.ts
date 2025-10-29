@@ -11,8 +11,16 @@ import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js'
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
+import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
 
 type EcosystemRecipient = EcosystemMainAccountMetadata['recipients'][number];
+
+type EcosystemProjectRecipient = Omit<
+  Extract<EcosystemRecipient, { type: 'repoSubAccountDriver' }>,
+  'source'
+> & {
+  source: z.infer<typeof gitHubSourceSchema>;
+};
 
 export async function handleEcosystemMainAccountMetadata(
   accountId: string,
@@ -29,12 +37,12 @@ export async function handleEcosystemMainAccountMetadata(
     );
   }
 
+  // Order matters!
+  // Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+
   const recipients = metadata.recipients;
-
-  await verifyGitHubProjectSources(recipients, ctx);
-
-  // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  const projectRecipients = await verifyGitHubProjectSources(recipients, ctx);
+  await ensureProjectReceivers(projectRecipients, ctx.projectsRepo, eventPointer);
   await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateEcosystemMainAccount(metadata, cId, accountId, blockNumber, ctx, eventPointer);
 }
@@ -42,14 +50,14 @@ export async function handleEcosystemMainAccountMetadata(
 async function verifyGitHubProjectSources(
   recipients: EcosystemRecipient[],
   ctx: HandlerContext,
-): Promise<void> {
+): Promise<EcosystemProjectRecipient[]> {
   const projectRecipients = recipients.filter(
     (recipient): recipient is EcosystemRecipient & { source: z.infer<typeof gitHubSourceSchema> } =>
       'source' in recipient && recipient.source.forge === 'github',
   );
 
   if (projectRecipients.length === 0) {
-    return;
+    return [];
   }
 
   await verifyProjectSources(
@@ -59,6 +67,8 @@ async function verifyGitHubProjectSources(
     })),
     ctx.contracts,
   );
+
+  return projectRecipients as EcosystemProjectRecipient[];
 }
 
 async function updateEcosystemMainAccount(

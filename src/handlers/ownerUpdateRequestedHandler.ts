@@ -2,10 +2,9 @@ import { fromHex, type DecodeEventLogReturnType } from 'viem';
 
 import type { RepoDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
-import { mapForge } from '../utils/forgeUtils.js';
+import { mapForge, forgeToUrl } from '../utils/forgeUtils.js';
 import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { toEventPointer } from '../repositories/types.js';
-import type { Forge } from '../repositories/ProjectsRepository.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
 
@@ -25,12 +24,13 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
   const nameStr = fromHex(name, 'string');
 
   if (isProject(accountIdStr)) {
+    const forgeValue = mapForge(Number(forge));
     const project = await projectsRepo.ensureUnclaimedProject(
       {
         account_id: accountIdStr,
-        forge: mapForge(Number(forge)),
+        forge: forgeValue,
         name: nameStr,
-        url: toUrl(mapForge(Number(forge)), nameStr),
+        url: forgeToUrl(forgeValue, nameStr),
       },
       eventPointer,
     );
@@ -50,12 +50,3 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
     logger.warn('owner_update_requested_unsupported_account', { accountId: accountIdStr });
   }
 };
-
-function toUrl(forge: Forge, projectName: string): string {
-  switch (forge) {
-    case 'github':
-      return `https://github.com/${projectName}`;
-    default:
-      throw new Error(`Unsupported forge: ${forge}.`);
-  }
-}

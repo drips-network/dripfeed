@@ -11,6 +11,7 @@ import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js'
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
+import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
 
 type DripListReceiver = Extract<
   DripListMetadata,
@@ -36,12 +37,12 @@ export async function handleDripListMetadata(
     );
   }
 
+  // Order matters!
+  // Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+
   const splits = extractReceivers(metadata);
-
-  await verifyGitHubProjectSources(splits, ctx);
-
-  // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  const projectReceivers = await verifyGitHubProjectSources(splits, ctx);
+  await ensureProjectReceivers(projectReceivers, ctx.projectsRepo, eventPointer);
   await updateDripListSplits(
     dripListId.toString(),
     blockTimestamp,
@@ -67,14 +68,14 @@ function extractReceivers(metadata: DripListMetadata): Receiver[] {
 async function verifyGitHubProjectSources(
   receivers: Receiver[],
   ctx: HandlerContext,
-): Promise<void> {
+): Promise<(Receiver & { source: z.infer<typeof gitHubSourceSchema> })[]> {
   const projectSplits = receivers.filter(
     (receiver): receiver is Receiver & { source: z.infer<typeof gitHubSourceSchema> } =>
       'source' in receiver && receiver.source.forge === 'github',
   );
 
   if (projectSplits.length === 0) {
-    return;
+    return [];
   }
 
   await verifyProjectSources(
@@ -84,6 +85,8 @@ async function verifyGitHubProjectSources(
     })),
     ctx.contracts,
   );
+
+  return projectSplits;
 }
 
 async function updateDripList(

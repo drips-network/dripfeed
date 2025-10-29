@@ -11,8 +11,16 @@ import { getReceiverTypeFromMetadata } from '../../utils/metadataTypeMapping.js'
 import { assertValidReceiverType, type AccountType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
+import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
 
 type SubListRecipient = SubListMetadata['recipients'][number];
+
+type SubListProjectRecipient = Omit<
+  Extract<SubListRecipient, { type: 'repoSubAccountDriver' }>,
+  'source'
+> & {
+  source: z.infer<typeof gitHubSourceSchema>;
+};
 
 export async function handleSubListMetadata(
   accountId: string,
@@ -34,13 +42,12 @@ export async function handleSubListMetadata(
     return;
   }
 
+  // Order matters!
+  // Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
   const recipients = metadata.recipients;
-
-  await verifyGitHubProjectSources(recipients, ctx);
+  const projectRecipients = await verifyGitHubProjectSources(recipients, ctx);
   await validateRootAndParentExist(metadata, ctx);
-
-  // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  await ensureProjectReceivers(projectRecipients, ctx.projectsRepo, eventPointer);
   await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateSubList(metadata, cId, accountId, ctx, eventPointer);
 }
@@ -48,14 +55,14 @@ export async function handleSubListMetadata(
 async function verifyGitHubProjectSources(
   recipients: SubListRecipient[],
   ctx: HandlerContext,
-): Promise<void> {
+): Promise<SubListProjectRecipient[]> {
   const projectRecipients = recipients.filter(
     (recipient): recipient is SubListRecipient & { source: z.infer<typeof gitHubSourceSchema> } =>
       'source' in recipient && recipient.source.forge === 'github',
   );
 
   if (projectRecipients.length === 0) {
-    return;
+    return [];
   }
 
   await verifyProjectSources(
@@ -65,6 +72,8 @@ async function verifyGitHubProjectSources(
     })),
     ctx.contracts,
   );
+
+  return projectRecipients as SubListProjectRecipient[];
 }
 
 async function validateRootAndParentExist(

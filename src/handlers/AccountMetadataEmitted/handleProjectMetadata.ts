@@ -10,6 +10,7 @@ import { logger } from '../../logger.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import { validateSplits } from '../../utils/validateSplits.js';
+import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
 
 export async function handleProjectMetadata(
   projectId: string,
@@ -27,17 +28,17 @@ export async function handleProjectMetadata(
     );
   }
 
+  // Order matters!
+  // Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+
   const projectSplits = metadata.splits.dependencies.filter(
     (dep) => 'source' in dep && dep.source.forge === 'github',
   ) as { accountId: string; source: z.infer<typeof gitHubSourceSchema> }[];
-
   await verifyProjectSources(
     [...projectSplits, { accountId: projectId, source: metadata.source }],
     ctx.contracts,
   );
-
-  // Order matters! Splits must be written before validation.
-  // Note: Transaction safety is guaranteed by EventProcessor.processBatch() wrapping all handlers in BEGIN/COMMIT.
+  await ensureProjectReceivers(projectSplits, ctx.projectsRepo, eventPointer);
   await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
   await updateProject(metadata, cId, ctx, projectId, eventPointer);
 }

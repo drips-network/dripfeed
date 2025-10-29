@@ -11,3 +11,12 @@ export function mapForge(forgeNum: number): Forge {
   if (forgeNum === 1) return 'gitlab';
   throw new Error(`Invalid forge enum value: ${forgeNum}`);
 }
+
+export function forgeToUrl(forge: Forge, projectName: string): string {
+  switch (forge) {
+    case 'github':
+      return `https://github.com/${projectName}`;
+    default:
+      throw new Error(`Unsupported forge: ${forge}`);
+  }
+}
