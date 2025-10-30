@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio",
     "info:projects": "tsx scripts/projects-info.ts",
     "info:drip-lists": "tsx scripts/drip-lists-info.ts",
+    "info:account-history": "tsx scripts/account-event-history.ts",
     "info:splits": "tsx scripts/splits-info.ts",
     "rollback": "tsx scripts/rollback.ts",
     "inspect-orphans": "tsx scripts/inspect-orphans.ts"
