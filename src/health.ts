@@ -117,7 +117,7 @@ export function createHealthServer(
     res.end(JSON.stringify(response));
   });
 
-  server.listen(port, '0.0.0.0', () => {
+  server.listen(port, '::', () => {
     logger.info(`✓ Health endpoint: http://localhost:${port}/api/health`);
     logger.info(`✓ Health server started on port ${port}`);
   });
