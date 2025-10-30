@@ -2,9 +2,15 @@ import type { Config } from '../config.js';
 import type { ContractConfig } from '../core/EventDecoder.js';
 import { logger } from '../logger.js';
 
+const RPC_URL_WHITELIST_PREFIXES = ['junction.'];
+
 function maskRpcUrl(rpcUrl: string): string {
   try {
     const url = new URL(rpcUrl);
+    // Don't mask whitelisted hostnames.
+    if (RPC_URL_WHITELIST_PREFIXES.some((prefix) => url.hostname.startsWith(prefix))) {
+      return rpcUrl;
+    }
     return `${url.protocol}//${url.host}/***`;
   } catch {
     return '***';
