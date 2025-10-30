@@ -8,6 +8,7 @@ import type { CursorRepository } from './repositories/CursorRepository.js';
 
 type HealthStatus = {
   status: 'OK' | 'Unhealthy' | 'Error';
+  network: string;
   db: 'connected' | 'error';
   rpc: 'connected' | 'error';
   indexing: boolean;
@@ -24,6 +25,7 @@ export function createHealthServer(
   rpc: RpcClient,
   cursorRepo: CursorRepository,
   chainId: string,
+  network: string,
   port: number,
 ): http.Server {
   const STALE_TIMEOUT = 5 * 60 * 1000; // 5 minutes.
@@ -104,6 +106,7 @@ export function createHealthServer(
     const allHealthy = dbHealthy && rpcHealthy && indexing;
     const response: HealthStatus = {
       status: allHealthy ? 'OK' : 'Unhealthy',
+      network,
       db: dbHealthy ? 'connected' : 'error',
       rpc: rpcHealthy ? 'connected' : 'error',
       indexing,

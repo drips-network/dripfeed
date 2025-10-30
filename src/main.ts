@@ -31,7 +31,7 @@ const { indexer, pool, rpc, cursorRepo, chainId } = createIndexer(
   chainConfig.contractConfigs,
 );
 
-const healthServer = createHealthServer(pool, rpc, cursorRepo, chainId, runtimeConfig.health.port);
+const healthServer = createHealthServer(pool, rpc, cursorRepo, chainId, config.network, runtimeConfig.health.port);
 
 // Graceful shutdown handler.
 let shutdownInProgress = false;
