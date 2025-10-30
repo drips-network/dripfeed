@@ -5,6 +5,7 @@ import type { z } from 'zod';
 import { projects } from '../db/schema.js';
 import { upsertPartial, update } from '../db/replayableOps.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
+import { logger } from '../logger.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
@@ -70,6 +71,47 @@ export class ProjectsRepository {
     eventPointer: EventPointer,
   ): Promise<Project> {
     ensureUnclaimedProjectInputSchema.parse(data);
+
+    const existing = await this.findById(data.account_id);
+
+    // Security check: prevent resetting claimed projects with new events.
+    // Only allow reset if this is a replay event (older than existing state).
+    if (existing && existing.owner_address !== null) {
+      // If existing event pointer fields are null, we cannot determine replay status.
+      // Proceed with reset (defensive: assume valid).
+      if (
+        existing.last_event_block === null ||
+        existing.last_event_tx_index === null ||
+        existing.last_event_log_index === null
+      ) {
+        logger.warn('owner_update_requested_claimed_project_missing_event_pointer', {
+          account_id: data.account_id,
+          existing_owner: existing.owner_address,
+        });
+      } else {
+        const isReplay =
+          eventPointer.last_event_block < existing.last_event_block ||
+          (eventPointer.last_event_block === existing.last_event_block &&
+            eventPointer.last_event_tx_index < existing.last_event_tx_index) ||
+          (eventPointer.last_event_block === existing.last_event_block &&
+            eventPointer.last_event_tx_index === existing.last_event_tx_index &&
+            eventPointer.last_event_log_index <= existing.last_event_log_index);
+
+        if (!isReplay) {
+          // This is a new event attempting to reset a claimed project (potential attack).
+          // Skip reset and return existing project unchanged.
+          logger.warn('owner_update_requested_ignored_claimed_project', {
+            account_id: data.account_id,
+            existing_owner: existing.owner_address,
+            existing_event_block: existing.last_event_block.toString(),
+            request_event_block: eventPointer.last_event_block.toString(),
+          });
+          return existing;
+        }
+
+        // This is a replay event (reorg recovery). Proceed with reset.
+      }
+    }
 
     const upsertData = {
       account_id: data.account_id,
