@@ -185,26 +185,44 @@ async function main(dbUrl: string, schema: string): Promise<void> {
   }
 }
 
+// Parse named arguments.
+function parseArgs(argv: string[]): Record<string, string> {
+  const args: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg?.startsWith('--')) {
+      const key = arg.slice(2);
+      const value = argv[i + 1];
+      if (value && !value.startsWith('--')) {
+        args[key] = value;
+        i++;
+      }
+    }
+  }
+  return args;
+}
+
 // Main execution.
-const args = process.argv.slice(2);
-const dbUrl = args[0] || process.env.DATABASE_URL;
-const schema = args[1] || process.env.NETWORK || 'public';
+const parsedArgs = parseArgs(process.argv.slice(2));
+const dbUrl = parsedArgs['db-url'] || process.env.DATABASE_URL;
+const schema = parsedArgs.schema || process.env.DB_SCHEMA || 'public';
 
 if (!dbUrl) {
   console.error(
-    `${COLORS.RED}Error: DATABASE_URL environment variable is not set and no db_url argument provided${COLORS.NC}`,
+    `${COLORS.RED}Error: DATABASE_URL environment variable is not set and no --db-url argument provided${COLORS.NC}`,
   );
   console.error();
-  console.error(`${COLORS.CYAN}Usage: tsx scripts/drip-lists-info.ts [db_url] [schema]${COLORS.NC}`);
+  console.error(`${COLORS.CYAN}Usage:${COLORS.NC}`);
+  console.error(`  tsx scripts/drip-lists-info.ts [--db-url URL] [--schema SCHEMA]`);
+  console.error();
+  console.error(`${COLORS.CYAN}Options:${COLORS.NC}`);
+  console.error(`  --db-url    Database connection string (default: DATABASE_URL env)`);
+  console.error(`  --schema    Schema to query (default: DB_SCHEMA env or 'public')`);
   console.error();
   console.error(`${COLORS.CYAN}Examples:${COLORS.NC}`);
   console.error(`  tsx scripts/drip-lists-info.ts`);
-  console.error(`  tsx scripts/drip-lists-info.ts "postgresql://user:pass@host:5432/db"`);
-  console.error(`  tsx scripts/drip-lists-info.ts "postgresql://user:pass@host:5432/db" filecoin`);
-  console.error();
-  console.error(`${COLORS.CYAN}Environment Variables:${COLORS.NC}`);
-  console.error(`  DATABASE_URL     - Database connection string (default: from .env)`);
-  console.error(`  NETWORK          - Schema to query (default: public)`);
+  console.error(`  tsx scripts/drip-lists-info.ts --db-url "postgresql://user:pass@host:5432/db"`);
+  console.error(`  tsx scripts/drip-lists-info.ts --db-url "postgresql://..." --schema filecoin`);
   process.exit(1);
 }
 

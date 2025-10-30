@@ -1,9 +1,8 @@
+import { config } from 'dotenv';
+import { expand } from 'dotenv-expand';
 import { Pool } from 'pg';
-import { createPublicClient, http, type Chain } from 'viem';
 
-import { config } from '../src/config.js';
-import { loadChainConfig } from '../src/chains/loadChainConfig.js';
-import { RpcClient } from '../src/core/RpcClient.js';
+expand(config());
 
 interface CursorRow {
   chainId: string;
@@ -43,6 +42,7 @@ const COLORS = {
   YELLOW: '\x1b[1;33m',
   GREEN: '\x1b[0;32m',
   BLUE: '\x1b[0;34m',
+  BRIGHT: '\x1b[1m',
   NC: '\x1b[0m',
 };
 
@@ -50,43 +50,16 @@ function formatDate(date: Date): string {
   return date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 }
 
-async function main(): Promise<void> {
-  const failedSinceHours = parseInt(process.argv[2] || '24', 10);
-  if (isNaN(failedSinceHours) || failedSinceHours <= 0) {
-    console.log(`${COLORS.RED}Error: Hours parameter must be a positive number${COLORS.NC}`);
-    console.log(`Usage: tsx scripts/db-status.ts [hours] (default: 24)`);
-    process.exit(1);
-  }
-
-  const schema = config.database.schema;
-  const pool = new Pool({ connectionString: config.database.url });
-
-  // Load chain config to get chain ID.
-  const chainConfig = loadChainConfig(config.network);
-
-  // Create RPC client for progress tracking.
-  let rpcClient: RpcClient | null = null;
-  try {
-    const client = createPublicClient({
-      chain: { id: chainConfig.chainId } as Chain,
-      transport: http(config.chain.rpcUrl, {
-        timeout: 10000,
-      }),
-    });
-    rpcClient = new RpcClient(client, {
-      chainId: chainConfig.chainId,
-      timeout: 10000,
-      retries: 2,
-    });
-  } catch (error) {
-    console.log(
-      `${COLORS.YELLOW}⚠️  Could not initialize RPC client (progress % unavailable)${COLORS.NC}`,
-    );
-    console.log(`${COLORS.YELLOW}    Error: ${error instanceof Error ? error.message : String(error)}${COLORS.NC}`);
-  }
+async function main(
+  failedSinceHours: number,
+  dbUrl: string,
+  schema: string,
+): Promise<void> {
+  const pool = new Pool({ connectionString: dbUrl });
 
   try {
-    console.log(`${COLORS.BLUE}=== Dripfeed Indexer Health Check ===${COLORS.NC}`);
+    console.log(`${COLORS.BLUE}=== Database Status ===${COLORS.NC}`);
+    console.log(`Database: ${dbUrl.replace(/:[^:@]+@/, ':***@')}`);
     console.log(`Schema: ${schema}`);
     console.log(`Time: ${formatDate(new Date())}`);
     console.log(`Failed events window: last ${failedSinceHours}h`);
@@ -101,8 +74,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    // 1. Cursor Status.
-    console.log(`${COLORS.BLUE}=== Indexing Progress ===${COLORS.NC}`);
+    // Get cursor status.
     const cursorResult = await pool.query<CursorRow>(
       `
       SELECT
@@ -113,42 +85,20 @@ async function main(): Promise<void> {
     `,
     );
 
-    if (cursorResult.rows.length === 0) {
-      console.log(`${COLORS.YELLOW}⚠️  No cursor found (indexer not initialized)${COLORS.NC}`);
-    } else {
+    if (cursorResult.rows.length > 0) {
       const cursor = cursorResult.rows[0]!;
-      console.log(`  Chain ID: ${cursor.chainId}`);
-      console.log(`  Fetched to block: ${cursor.fetchedToBlock}`);
-
-      // Try to get progress percentage.
-      if (rpcClient) {
-        try {
-          const latestBlock = await rpcClient.getLatestBlockNumber();
-          const progress = (Number(cursor.fetchedToBlock) / Number(latestBlock)) * 100;
-          const progressColor =
-            progress >= 100 ? COLORS.GREEN : progress > 99 ? COLORS.YELLOW : COLORS.RED;
-          const blocksBehind = Number(latestBlock) - Number(cursor.fetchedToBlock);
-          console.log(`  Latest chain block: ${latestBlock}`);
-          console.log(
-            `  Progress: ${progressColor}${progress.toFixed(4)}%${COLORS.NC} (${blocksBehind} blocks behind)`,
-          );
-        } catch (error) {
-          console.log(`  ${COLORS.YELLOW}Progress: unavailable (RPC error)${COLORS.NC}`);
-          console.log(`  ${COLORS.YELLOW}Error: ${error instanceof Error ? error.message : String(error)}${COLORS.NC}`);
-        }
-      }
 
       // Check if stalled.
       const staleMinutes = (Date.now() - cursor.updatedAt.getTime()) / 1000 / 60;
       if (staleMinutes > 5) {
         console.log(
-          `${COLORS.YELLOW}  ⚠️  Warning: Cursor not updated in last ${Math.floor(staleMinutes)} minutes (indexer may be stalled)${COLORS.NC}`,
+          `${COLORS.YELLOW}⚠️  Warning: Cursor not updated in last ${Math.floor(staleMinutes)} minutes (indexer may be stalled)${COLORS.NC}`,
         );
+        console.log('');
       }
     }
-    console.log('');
 
-    // 2. Event Status Summary.
+    // 1. Event Status Summary.
     console.log(`${COLORS.BLUE}=== Event Status Summary ===${COLORS.NC}`);
     const statusResult = await pool.query<EventStatusRow>(
       `
@@ -187,7 +137,7 @@ async function main(): Promise<void> {
     }
     console.log('');
 
-    // 3. Failed Events (if any).
+    // 2. Failed Events (if any).
     if (failedCount > 0) {
       console.log(
         `${COLORS.BLUE}=== Recently Failed Events (last ${failedSinceHours}h) ===${COLORS.NC}`,
@@ -238,7 +188,7 @@ async function main(): Promise<void> {
     }
 
 
-    // 4. Processing Rate.
+    // 3. Processing Rate.
     console.log(`${COLORS.BLUE}=== Processing Rate ===${COLORS.NC}`);
     const rateResult = await pool.query<ProcessingRateRow>(
       `
@@ -267,7 +217,7 @@ async function main(): Promise<void> {
     }
     console.log('');
 
-    // 5. Pending NFT Transfers.
+    // 4. Pending NFT Transfers.
     console.log(`${COLORS.BLUE}=== Pending NFT Transfers ===${COLORS.NC}`);
     const pendingNftResult = await pool.query<{ count: number; oldestBlockNumber: bigint | null }>(
       `
@@ -299,7 +249,7 @@ async function main(): Promise<void> {
     }
     console.log('');
 
-    // 6. Database Size.
+    // 5. Database Statistics.
     console.log(`${COLORS.BLUE}=== Database Statistics ===${COLORS.NC}`);
     const statsResult = await pool.query<DbStatsRow>(
       `
@@ -315,6 +265,35 @@ async function main(): Promise<void> {
       console.log(`  Events table size: ${stats.eventsTableSize}`);
       console.log(`  Total events: ${stats.totalEvents}`);
       console.log(`  Block hashes cached: ${stats.blockHashesCached}`);
+    }
+    console.log('');
+
+    // 6. Platform Stats.
+    console.log(`${COLORS.BLUE}=== Platform Stats ===${COLORS.NC}`);
+    const statsQuery = await pool.query<{
+      claimedProjects: number;
+      dripLists: number;
+      totalSplits: number;
+    }>(
+      `
+      SELECT
+        (SELECT COUNT(*)::int
+         FROM ${schema}.projects
+         WHERE verification_status = 'claimed'
+           AND is_valid = true) as "claimedProjects",
+        (SELECT COUNT(*)::int
+         FROM ${schema}.drip_lists
+         WHERE is_valid = true) as "dripLists",
+        (SELECT COUNT(*)::int
+         FROM ${schema}.splits_receivers) as "totalSplits"
+    `,
+    );
+
+    const platformStats = statsQuery.rows[0];
+    if (platformStats) {
+      console.log(`  Total claimed projects: ${COLORS.GREEN}${platformStats.claimedProjects}${COLORS.NC}`);
+      console.log(`  Total drip lists: ${COLORS.GREEN}${platformStats.dripLists}${COLORS.NC}`);
+      console.log(`  Total splits: ${COLORS.GREEN}${platformStats.totalSplits}${COLORS.NC}`);
     }
     console.log('');
 
@@ -346,4 +325,63 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// Parse named arguments.
+function parseArgs(argv: string[]): Record<string, string> {
+  const args: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg?.startsWith('--')) {
+      const key = arg.slice(2);
+      const value = argv[i + 1];
+      if (value && !value.startsWith('--')) {
+        args[key] = value;
+        i++;
+      }
+    }
+  }
+  return args;
+}
+
+// Main execution.
+const parsedArgs = parseArgs(process.argv.slice(2));
+
+const failedSinceHours = parsedArgs.hours ? parseInt(parsedArgs.hours, 10) : 24;
+const dbUrl = parsedArgs['db-url'] || process.env.DATABASE_URL;
+const schema = parsedArgs.schema || process.env.DB_SCHEMA || 'public';
+
+if (parsedArgs.hours && (isNaN(failedSinceHours) || failedSinceHours <= 0)) {
+  console.error(`${COLORS.RED}Error: Hours parameter must be a positive number${COLORS.NC}`);
+  process.exit(1);
+}
+
+if (!dbUrl) {
+  console.error(
+    `${COLORS.RED}Error: DATABASE_URL environment variable is not set and no --db-url argument provided${COLORS.NC}`,
+  );
+  console.error();
+  console.error(`${COLORS.BRIGHT}Usage:${COLORS.NC}`);
+  console.error(
+    `  tsx scripts/db-status.ts [--hours N] [--db-url URL] [--schema SCHEMA]`,
+  );
+  console.error();
+  console.error(`${COLORS.BRIGHT}Options:${COLORS.NC}`);
+  console.error(`  --hours     Failed events window in hours (default: 24)`);
+  console.error(`  --db-url    Database connection string (default: DATABASE_URL env)`);
+  console.error(`  --schema    Schema to query (default: DB_SCHEMA env or 'public')`);
+  console.error();
+  console.error(`${COLORS.BRIGHT}Examples:${COLORS.NC}`);
+  console.error(`  tsx scripts/db-status.ts`);
+  console.error(`  tsx scripts/db-status.ts --hours 48`);
+  console.error(
+    `  tsx scripts/db-status.ts --db-url "postgresql://user:pass@host:5432/db" --schema optimism`,
+  );
+  console.error(
+    `  npm run info:db -- --hours 24 --db-url "postgresql://..." --schema public`,
+  );
+  process.exit(1);
+}
+
+main(failedSinceHours, dbUrl, schema).catch((error: Error) => {
+  console.error(`${COLORS.RED}Error:${COLORS.NC}`, error.message);
+  process.exit(1);
+});
