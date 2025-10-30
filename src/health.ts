@@ -14,6 +14,7 @@ type HealthStatus = {
   indexing: boolean;
   latestChainBlock?: number;
   lastIndexedBlock?: number;
+  progressPercent?: string;
   message?: string;
 };
 
@@ -29,7 +30,6 @@ export function createHealthServer(
   port: number,
 ): http.Server {
   const STALE_TIMEOUT = 5 * 60 * 1000; // 5 minutes.
-  const MAX_BLOCK_LAG = 100; // Maximum blocks behind chain before unhealthy.
 
   let lastIndexedBlock = 0;
   let lastProgressTime = Date.now();
@@ -86,9 +86,6 @@ export function createHealthServer(
         } else if (latestChainBlock !== undefined && currentIndexedBlock >= latestChainBlock) {
           // Caught up with chain - healthy even if no new blocks for >5min.
           indexing = true;
-        } else if (latestChainBlock !== undefined && latestChainBlock - currentIndexedBlock > MAX_BLOCK_LAG) {
-          // Too far behind - unhealthy even if advancing slowly.
-          indexing = false;
         } else {
           // Check staleness.
           const staleForMs = Date.now() - lastProgressTime;
@@ -104,6 +101,11 @@ export function createHealthServer(
     }
 
     const allHealthy = dbHealthy && rpcHealthy && indexing;
+
+    const progressPercent = latestChainBlock !== undefined && currentIndexedBlock !== undefined && latestChainBlock > 0
+      ? ((currentIndexedBlock / latestChainBlock) * 100).toFixed(2)
+      : undefined;
+
     const response: HealthStatus = {
       status: allHealthy ? 'OK' : 'Unhealthy',
       network,
@@ -112,6 +114,7 @@ export function createHealthServer(
       indexing,
       ...(latestChainBlock !== undefined && { latestChainBlock }),
       ...(currentIndexedBlock !== undefined && { lastIndexedBlock: currentIndexedBlock }),
+      ...(progressPercent !== undefined && { progressPercent: `${progressPercent}%` }),
       ...(allHealthy ? {} : { message: 'One or more health checks failed.' }),
     };
 

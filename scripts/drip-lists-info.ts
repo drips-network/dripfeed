@@ -1,6 +1,8 @@
+import { config as dotenvConfig } from 'dotenv';
+import { expand } from 'dotenv-expand';
 import { Pool } from 'pg';
 
-import { config } from '../src/config.js';
+expand(dotenvConfig());
 
 type DripListStats = {
   total: number;
@@ -26,12 +28,12 @@ function formatDate(date: Date | null): string {
   return date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 }
 
-async function main(): Promise<void> {
-  const schema = config.database.schema;
-  const pool = new Pool({ connectionString: config.database.url });
+async function main(dbUrl: string, schema: string): Promise<void> {
+  const pool = new Pool({ connectionString: dbUrl });
 
   try {
     console.log(`${COLORS.BLUE}=== Drip Lists Dashboard ===${COLORS.NC}`);
+    console.log(`Database: ${dbUrl.replace(/:[^:@]+@/, ':***@')}`);
     console.log(`Schema: ${schema}`);
     console.log(`Time: ${formatDate(new Date())}`);
     console.log('');
@@ -183,4 +185,30 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// Main execution.
+const args = process.argv.slice(2);
+const dbUrl = args[0] || process.env.DATABASE_URL;
+const schema = args[1] || process.env.NETWORK || 'public';
+
+if (!dbUrl) {
+  console.error(
+    `${COLORS.RED}Error: DATABASE_URL environment variable is not set and no db_url argument provided${COLORS.NC}`,
+  );
+  console.error();
+  console.error(`${COLORS.CYAN}Usage: tsx scripts/drip-lists-info.ts [db_url] [schema]${COLORS.NC}`);
+  console.error();
+  console.error(`${COLORS.CYAN}Examples:${COLORS.NC}`);
+  console.error(`  tsx scripts/drip-lists-info.ts`);
+  console.error(`  tsx scripts/drip-lists-info.ts "postgresql://user:pass@host:5432/db"`);
+  console.error(`  tsx scripts/drip-lists-info.ts "postgresql://user:pass@host:5432/db" filecoin`);
+  console.error();
+  console.error(`${COLORS.CYAN}Environment Variables:${COLORS.NC}`);
+  console.error(`  DATABASE_URL     - Database connection string (default: from .env)`);
+  console.error(`  NETWORK          - Schema to query (default: public)`);
+  process.exit(1);
+}
+
+main(dbUrl, schema).catch((error: Error) => {
+  console.error(`${COLORS.RED}Error:${COLORS.NC}`, error.message);
+  process.exit(1);
+});
