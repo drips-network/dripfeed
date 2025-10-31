@@ -18,12 +18,6 @@ import type { RpcClient } from './RpcClient.js';
 const MAX_REORG_DEPTH = 100;
 
 /**
- * Minimum reorg detection window in blocks.
- * Used when confirmations = 0 to ensure a reasonable detection range.
- */
-const MIN_REORG_WINDOW = MAX_REORG_DEPTH;
-
-/**
  * Detects blockchain reorganizations.
  */
 export class ReorgDetector {
@@ -64,7 +58,7 @@ export class ReorgDetector {
 
   /**
    * Detects reorgs by comparing stored hashes against current chain state.
-   * Widens the comparison window backwards until hashes realign.
+   * Scans backwards from the cursor (up to MAX_REORG_DEPTH) until hashes realign.
    * Returns the earliest reorg block number if detected, null otherwise.
    */
   async detect(): Promise<bigint | null> {
@@ -76,115 +70,83 @@ export class ReorgDetector {
     }
 
     const tail = cursor.fetchedToBlock;
-    const minReorgWindow = this._confirmations === 0 ? MIN_REORG_WINDOW : this._confirmations;
-    let checkFrom =
-      tail - BigInt(minReorgWindow) > this._startBlock
-        ? tail - BigInt(minReorgWindow)
-        : this._startBlock;
+    const maxLookback = tail >= BigInt(MAX_REORG_DEPTH - 1)
+      ? tail - BigInt(MAX_REORG_DEPTH - 1)
+      : this._startBlock;
+    const scanFrom =
+      maxLookback > this._startBlock ? maxLookback : this._startBlock;
 
     logger.debug('reorg_detection_started', {
       schema: this._schema,
       chain: this._chainId,
-      checkFrom: checkFrom.toString(),
+      checkFrom: scanFrom.toString(),
       checkTo: tail.toString(),
     });
 
+    const storedHashes = await this._getStoredBlockHashes(scanFrom, tail);
+    if (storedHashes.size === 0) {
+      endTimer();
+      return null;
+    }
+
+    const currentBlocks = await this._rpc.getBlocksInRange(scanFrom, tail);
+    const currentMap = new Map<bigint, string>();
+    for (const block of currentBlocks) {
+      currentMap.set(block.number, block.hash);
+    }
+
     let earliestReorgBlock: bigint | null = null;
 
-    // Loop to widen window backwards until hashes realign.
-    while (checkFrom >= this._startBlock) {
-      const storedHashes = await this._getStoredBlockHashes(checkFrom, tail);
-      if (storedHashes.size === 0) {
+    for (
+      let blockNumber = tail;
+      blockNumber >= scanFrom && blockNumber >= this._startBlock;
+      blockNumber -= 1n
+    ) {
+      const storedHash = storedHashes.get(blockNumber);
+      if (!storedHash) {
         break;
       }
 
-      const currentBlocks = await this._rpc.getBlocksInRange(checkFrom, tail);
-
-      let mismatchFound = false;
-      for (const block of currentBlocks) {
-        const storedHash = storedHashes.get(block.number);
-        if (!storedHash) continue;
-
-        if (block.hash !== storedHash) {
-          logger.warn('reorg_hash_mismatch', {
-            schema: this._schema,
-            chain: this._chainId,
-            block: block.number.toString(),
-            storedHash,
-            currentHash: block.hash,
-            windowFrom: checkFrom.toString(),
-            windowTo: tail.toString(),
-            confirmations: this._confirmations,
-          });
-
-          // Track minimum instead of overwriting.
-          if (earliestReorgBlock === null || block.number < earliestReorgBlock) {
-            earliestReorgBlock = block.number;
-          }
-          mismatchFound = true;
-        }
-      }
-
-      // If no mismatch in current window, hashes have realigned.
-      if (!mismatchFound) {
+      const currentHash = currentMap.get(blockNumber);
+      if (!currentHash) {
         break;
       }
 
-      if (earliestReorgBlock !== null) {
-        const detectedDepth = tail - earliestReorgBlock;
-        if (detectedDepth > BigInt(MAX_REORG_DEPTH)) {
-          const errorMsg = `Reorg depth exceeds safety limit of ${MAX_REORG_DEPTH} blocks. Detected depth: ${detectedDepth}. This may indicate a critical chain issue or misconfiguration.`;
-          logger.error('reorg_depth_exceeded', {
-            schema: this._schema,
-            chain: this._chainId,
-            reorgDepth: detectedDepth.toString(),
-            maxDepth: MAX_REORG_DEPTH,
-            tail: tail.toString(),
-            earliestReorgBlock: earliestReorgBlock.toString(),
-          });
-          throw new Error(errorMsg);
-        }
-      }
-
-      // Widen window backwards.
-      const previousCheckFrom = checkFrom;
-      checkFrom =
-        checkFrom - BigInt(minReorgWindow) > this._startBlock
-          ? checkFrom - BigInt(minReorgWindow)
-          : this._startBlock;
-
-      // Prevent infinite loop if already at start.
-      if (checkFrom === previousCheckFrom) {
-        break;
-      }
-
-      const widenedDepth = tail - checkFrom;
-      if (widenedDepth >= BigInt(MAX_REORG_DEPTH)) {
-        logger.debug('reorg_max_window_reached', {
+      if (currentHash !== storedHash) {
+        logger.warn('reorg_hash_mismatch', {
           schema: this._schema,
           chain: this._chainId,
-          checkFrom: checkFrom.toString(),
-          widenedDepth: widenedDepth.toString(),
-          earliestReorgBlock: earliestReorgBlock?.toString() ?? null,
+          block: blockNumber.toString(),
+          storedHash,
+          currentHash,
+          windowFrom: scanFrom.toString(),
+          windowTo: tail.toString(),
+          confirmations: this._confirmations,
         });
+
+        earliestReorgBlock = blockNumber;
+      } else if (earliestReorgBlock !== null) {
         break;
       }
-
-      // Calculate reorg depth and check against limit.
-      const currentDepth =
-        earliestReorgBlock !== null ? tail - earliestReorgBlock : widenedDepth;
-
-      logger.debug('reorg_widening_window', {
-        schema: this._schema,
-        chain: this._chainId,
-        newCheckFrom: checkFrom.toString(),
-        currentDepth: currentDepth.toString(),
-      });
     }
 
     endTimer();
 
     if (earliestReorgBlock !== null) {
+      const detectedDepth = tail - earliestReorgBlock;
+      if (detectedDepth > BigInt(MAX_REORG_DEPTH)) {
+        const errorMsg = `Reorg depth exceeds safety limit of ${MAX_REORG_DEPTH} blocks. Detected depth: ${detectedDepth}. This may indicate a critical chain issue or misconfiguration.`;
+        logger.error('reorg_depth_exceeded', {
+          schema: this._schema,
+          chain: this._chainId,
+          reorgDepth: detectedDepth.toString(),
+          maxDepth: MAX_REORG_DEPTH,
+          tail: tail.toString(),
+          earliestReorgBlock: earliestReorgBlock.toString(),
+        });
+        throw new Error(errorMsg);
+      }
+
       if (this._autoHandleReorgs) {
         logger.warn('reorg_detected', {
           schema: this._schema,
