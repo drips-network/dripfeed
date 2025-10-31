@@ -158,9 +158,21 @@ export class ReorgDetector {
         break;
       }
 
+      const widenedDepth = tail - checkFrom;
+      if (widenedDepth >= BigInt(MAX_REORG_DEPTH)) {
+        logger.debug('reorg_max_window_reached', {
+          schema: this._schema,
+          chain: this._chainId,
+          checkFrom: checkFrom.toString(),
+          widenedDepth: widenedDepth.toString(),
+          earliestReorgBlock: earliestReorgBlock?.toString() ?? null,
+        });
+        break;
+      }
+
       // Calculate reorg depth and check against limit.
       const currentDepth =
-        earliestReorgBlock !== null ? tail - earliestReorgBlock : tail - checkFrom;
+        earliestReorgBlock !== null ? tail - earliestReorgBlock : widenedDepth;
 
       logger.debug('reorg_widening_window', {
         schema: this._schema,
