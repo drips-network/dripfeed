@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         - SKIP_BUILD=true
-    entrypoint: ["npm", "run", "dev"]
+    entrypoint: ['npm', 'run', 'dev']
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-dripfeeddb}
       - DB_SCHEMA=${DB_SCHEMA:-public}

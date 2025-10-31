@@ -22,10 +22,7 @@ export class Contracts {
     RepoSubAccountDriverAbi,
     PublicClient
   >;
-  public readonly repoDeadlineDriver: GetContractReturnType<
-    RepoDeadlineDriverAbi,
-    PublicClient
-  >;
+  public readonly repoDeadlineDriver: GetContractReturnType<RepoDeadlineDriverAbi, PublicClient>;
 
   constructor(publicClient: PublicClient, contractConfigs: ReadonlyArray<ContractConfig>) {
     const repoDriver = contractConfigs.find((c) => c.name === 'RepoDriver');

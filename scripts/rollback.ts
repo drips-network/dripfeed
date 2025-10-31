@@ -1,10 +1,12 @@
-import * as readline from 'readline';
-
+import { Command } from 'commander';
+import chalk from 'chalk';
+import boxen from 'boxen';
+import Table from 'cli-table3';
 import { Pool, types } from 'pg';
 import { createPublicClient, http, type Chain } from 'viem';
 
-import { config } from '../src/config.js';
 import { loadChainConfig } from '../src/chains/loadChainConfig.js';
+import { config } from '../src/config.js';
 import { RpcClient } from '../src/core/RpcClient.js';
 import { ReorgDetector } from '../src/core/ReorgDetector.js';
 import { CursorRepository } from '../src/repositories/CursorRepository.js';
@@ -12,146 +14,237 @@ import { EventRepository } from '../src/repositories/EventsRepository.js';
 import { BlockHashesRepository } from '../src/repositories/BlockHashesRepository.js';
 import { validateSchemaName } from '../src/utils/sqlValidation.js';
 
-const COLORS = {
-  RED: '\x1b[0;31m',
-  YELLOW: '\x1b[1;33m',
-  GREEN: '\x1b[0;32m',
-  BLUE: '\x1b[0;34m',
-  BOLD: '\x1b[1m',
-  NC: '\x1b[0m',
-};
+import { configureScriptLogger } from './shared/configure-logger.js';
+import { formatNumber } from './shared/formatting.js';
+import { prompt } from './shared/prompt.js';
 
-interface Args {
+// Configure logger for debug output.
+configureScriptLogger();
+
+interface RollbackOptions {
+  dbUrl: string;
   schema: string;
-  chainId: string;
-  block: bigint;
+  network: string;
+  block: string;
+  rpcUrl: string;
 }
 
-function parseArgs(): Args {
-  const args = process.argv.slice(2);
-  let schema: string | undefined;
-  let chainId: string | undefined;
-  let block: bigint | undefined;
+async function rollback(options: RollbackOptions): Promise<void> {
+  const block = BigInt(options.block);
 
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--schema' && args[i + 1]) {
-      schema = args[i + 1];
-      i++;
-    } else if (args[i] === '--chain' && args[i + 1]) {
-      chainId = args[i + 1];
-      i++;
-    } else if (args[i] === '--block' && args[i + 1]) {
-      block = BigInt(args[i + 1]!);
-      i++;
-    }
-  }
+  // Load chain config from network name.
+  const chainConfig = loadChainConfig(options.network);
+  const chainId = String(chainConfig.chainId);
 
-  // Use config defaults if not specified.
-  // Load chain config to get chainId like main.ts does.
-  const chainConfig = loadChainConfig(config.network);
-  schema = schema || config.database.schema;
-  chainId = chainId || String(chainConfig.chainId);
+  // Display header.
+  console.log(
+    boxen(chalk.bold.red('🔄 ROLLBACK SCRIPT 🔄'), {
+      padding: 1,
+      borderColor: 'red',
+      borderStyle: 'double',
+    }),
+  );
+  console.log();
 
-  if (!schema || !chainId || block === undefined) {
-    console.log(`${COLORS.RED}Error: Missing required argument --block${COLORS.NC}`);
-    console.log('');
-    console.log('Usage:');
-    console.log('  npm run rollback -- --block <blockNumber> [--schema <schema>] [--chain <chainId>]');
-    console.log('');
-    console.log('Description:');
-    console.log('  Rolls back the indexer state to a specific block by deleting all events,');
-    console.log('  block hashes, and resetting the cursor. Useful for reorg recovery or debugging.');
-    console.log('');
-    console.log('Arguments:');
-    console.log('  --block      Required: Block number to roll back to (data from this block onwards will be deleted)');
-    console.log('  --schema     Optional: Database schema (default: from .env DB_SCHEMA)');
-    console.log('  --chain      Optional: Chain ID (default: from .env NETWORK config)');
-    console.log('');
-    console.log('Examples:');
-    console.log('  npm run rollback -- --block 19500000                                    # Rollback using .env config');
-    console.log('  npm run rollback -- --block 19500000 --schema ethereum_mainnet --chain 1  # Override schema/chain');
-    process.exit(1);
-  }
+  // Display preview of what will be affected.
+  console.log(
+    boxen(chalk.bold('Database Connection & Target Information'), {
+      padding: 1,
+      borderColor: 'blue',
+      borderStyle: 'round',
+    }),
+  );
+  console.log();
 
-  return { schema, chainId, block: block as bigint };
-}
-
-function prompt(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const previewTable = new Table({
+    colWidths: [25, 80],
+    wordWrap: true,
+    style: { head: [] },
   });
 
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-async function main(): Promise<void> {
-  const args = parseArgs();
-
-  console.log(`${COLORS.BOLD}${COLORS.RED}╔═══════════════════════════════════════════════════════════════════╗${COLORS.NC}`);
-  console.log(`${COLORS.BOLD}${COLORS.RED}║                     🔄 ROLLBACK SCRIPT 🔄                         ║${COLORS.NC}`);
-  console.log(`${COLORS.BOLD}${COLORS.RED}╚═══════════════════════════════════════════════════════════════════╝${COLORS.NC}`);
-  console.log('');
-
-  console.log(`${COLORS.YELLOW}${COLORS.BOLD}⚠️  WARNING: This operation is DESTRUCTIVE and IRREVERSIBLE! ⚠️${COLORS.NC}`);
-  console.log('');
-  console.log('This script will:');
-  console.log(`  ${COLORS.RED}1. DELETE all events from block ${args.block} onwards${COLORS.NC}`);
-  console.log(`  ${COLORS.RED}2. DELETE all block hashes from block ${args.block} onwards${COLORS.NC}`);
-  console.log(`  ${COLORS.RED}3. RESET cursor to block ${args.block - 1n}${COLORS.NC}`);
-  console.log('');
-  console.log(`Schema: ${COLORS.BLUE}${args.schema}${COLORS.NC}`);
-  console.log(`Chain ID: ${COLORS.BLUE}${args.chainId}${COLORS.NC}`);
-  console.log(`Reorg Block: ${COLORS.BLUE}${args.block.toString()}${COLORS.NC}`);
-  console.log('');
-
-  // Check if indexer is running.
-  console.log(`${COLORS.YELLOW}${COLORS.BOLD}BEFORE PROCEEDING:${COLORS.NC}`);
-  console.log(`  ${COLORS.YELLOW}1. Ensure the indexer is STOPPED${COLORS.NC}`);
-  console.log(`  ${COLORS.YELLOW}2. Ensure no other processes are accessing the database${COLORS.NC}`);
-  console.log(`  ${COLORS.YELLOW}3. Verify the reorg block number is correct${COLORS.NC}`);
-  console.log('');
-
-  const confirm1 = await prompt(
-    `${COLORS.BOLD}Have you STOPPED the indexer? (yes/no): ${COLORS.NC}`,
+  previewTable.push(
+    [chalk.cyan('Database URL'), options.dbUrl],
+    [chalk.cyan('Schema'), chalk.bold(options.schema)],
+    [chalk.cyan('Network'), chalk.bold(options.network)],
+    [chalk.cyan('Chain ID'), chalk.bold(chainId)],
+    [chalk.cyan('RPC URL'), options.rpcUrl],
+    [chalk.cyan('Rollback to Block'), chalk.bold.yellow(block.toString())],
   );
-  if (confirm1.toLowerCase() !== 'yes') {
-    console.log(`${COLORS.RED}Aborting. Please stop the indexer first.${COLORS.NC}`);
-    process.exit(1);
-  }
 
-  const confirm2 = await prompt(
-    `${COLORS.BOLD}Are you ABSOLUTELY SURE you want to delete data from block ${args.block} onwards? Type 'DELETE' to confirm: ${COLORS.NC}`,
-  );
-  if (confirm2 !== 'DELETE') {
-    console.log(`${COLORS.RED}Aborting. Confirmation not received.${COLORS.NC}`);
-    process.exit(1);
-  }
-
-  console.log('');
-  console.log(`${COLORS.BLUE}Starting reorg recovery...${COLORS.NC}`);
-  console.log('');
+  console.log(previewTable.toString());
+  console.log();
 
   // Configure pg types.
   types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
 
   const pool = new Pool({
-    connectionString: config.database.url,
+    connectionString: options.dbUrl,
   });
 
   try {
-    const schema = validateSchemaName(args.schema);
-    const chainId = args.chainId;
+    // Test connection and fetch table info.
+    await pool.query('SELECT 1');
+
+    const schema = validateSchemaName(options.schema);
+
+    // Get table counts before rollback.
+    const tablesTable = new Table({
+      head: [chalk.cyan('Table'), chalk.cyan('Total Rows'), chalk.cyan(`Rows >= Block ${block}`)],
+      style: { head: [] },
+    });
+
+    const eventsCountResult = await pool.query<{ total: string; affected: string }>(
+      `SELECT
+        COUNT(*)::text as total,
+        COUNT(*) FILTER (WHERE block_number >= $2)::text as affected
+       FROM ${schema}._events
+       WHERE chain_id = $1`,
+      [chainId, block.toString()],
+    );
+    const eventsTotal = BigInt(eventsCountResult.rows[0]?.total || '0');
+    const eventsAffected = BigInt(eventsCountResult.rows[0]?.affected || '0');
+
+    const hashesCountResult = await pool.query<{ total: string; affected: string }>(
+      `SELECT
+        COUNT(*)::text as total,
+        COUNT(*) FILTER (WHERE block_number >= $2)::text as affected
+       FROM ${schema}._block_hashes
+       WHERE chain_id = $1`,
+      [chainId, block.toString()],
+    );
+    const hashesTotal = BigInt(hashesCountResult.rows[0]?.total || '0');
+    const hashesAffected = BigInt(hashesCountResult.rows[0]?.affected || '0');
+
+    const cursorResult = await pool.query(
+      `SELECT fetched_to_block FROM ${schema}._cursor WHERE chain_id = $1`,
+      [chainId],
+    );
+
+    // Validate schema/network compatibility.
+    if (cursorResult.rows.length === 0) {
+      console.log(
+        boxen(
+          chalk.bold.red(
+            `❌ No cursor found for chain ID ${chainId} (network: ${options.network}) in schema ${options.schema}`,
+          ),
+          {
+            padding: 1,
+            borderColor: 'red',
+            borderStyle: 'round',
+          },
+        ),
+      );
+      console.log();
+      console.log(chalk.yellow('Possible issues:'));
+      console.log(`  1. Wrong network name (check your network configuration)`);
+      console.log(`  2. Wrong schema name`);
+      console.log(`  3. Schema not initialized yet`);
+      console.log(`  4. Network/schema mismatch (one schema per chain)`);
+      process.exit(1);
+    }
+
+    const currentCursor = cursorResult.rows[0]
+      ? BigInt(cursorResult.rows[0].fetched_to_block)
+      : null;
+
+    tablesTable.push(
+      [
+        '_events',
+        formatNumber(eventsTotal),
+        eventsAffected > 0n ? chalk.red(formatNumber(eventsAffected)) : chalk.green('0'),
+      ],
+      [
+        '_block_hashes',
+        formatNumber(hashesTotal),
+        hashesAffected > 0n ? chalk.red(formatNumber(hashesAffected)) : chalk.green('0'),
+      ],
+      [
+        '_cursor',
+        '1',
+        currentCursor !== null
+          ? chalk.yellow(`${currentCursor} → ${block - 1n}`)
+          : chalk.dim('N/A'),
+      ],
+    );
+
+    console.log(
+      boxen(chalk.bold('Tables to be Modified'), {
+        padding: 1,
+        borderColor: 'yellow',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
+    console.log(tablesTable.toString());
+    console.log();
+
+    // Show warnings.
+    console.log(
+      boxen(chalk.bold.yellow('⚠️  WARNING: This operation is DESTRUCTIVE and IRREVERSIBLE! ⚠️'), {
+        padding: 1,
+        borderColor: 'yellow',
+        borderStyle: 'bold',
+      }),
+    );
+    console.log();
+
+    console.log(chalk.bold('This script will:'));
+    console.log(`  ${chalk.red('1.')} DELETE all events from block ${block} onwards`);
+    console.log(`  ${chalk.red('2.')} DELETE all block hashes from block ${block} onwards`);
+    console.log(`  ${chalk.red('3.')} RESET cursor to block ${block - 1n}`);
+    console.log();
+
+    console.log(chalk.bold.yellow('BEFORE PROCEEDING:'));
+    console.log(`  ${chalk.yellow('1.')} Ensure the indexer is STOPPED`);
+    console.log(
+      `  ${chalk.yellow('2.')} Ensure no other processes are accessing the database (for this schema/network)`,
+    );
+    console.log(`  ${chalk.yellow('3.')} Verify the rollback block number is correct`);
+    console.log();
+
+    // Warnings for edge cases.
+    if (currentCursor !== null && block > currentCursor) {
+      console.log(
+        chalk.yellow(
+          `⚠️  Warning: Rollback block (${block}) is ahead of current cursor (${currentCursor})`,
+        ),
+      );
+      console.log(chalk.yellow('This is unusual but may be valid if cursor was manually reset.'));
+      console.log();
+    }
+
+    if (eventsAffected === 0n && hashesAffected === 0n) {
+      console.log(
+        chalk.yellow('⚠️  Warning: No data found to delete. Rollback may be unnecessary.'),
+      );
+      console.log();
+    }
+
+    // Confirmations.
+    const confirm1 = await prompt(chalk.bold('Have you STOPPED the indexer? (yes/no): '));
+    if (confirm1.toLowerCase() !== 'yes') {
+      console.log(chalk.red('Aborting. Please stop the indexer first.'));
+      process.exit(1);
+    }
+
+    const confirm2 = await prompt(
+      chalk.bold(
+        `Are you ABSOLUTELY SURE you want to delete data from block ${block} onwards? Type 'DELETE' to confirm: `,
+      ),
+    );
+    if (confirm2 !== 'DELETE') {
+      console.log(chalk.red('Aborting. Confirmation not received.'));
+      process.exit(1);
+    }
+
+    console.log();
+    console.log(chalk.blue('Starting rollback...'));
+    console.log();
 
     // Create RPC client.
     const client = createPublicClient({
       chain: { id: parseInt(chainId, 10) } as Chain,
-      transport: http(config.chain.rpcUrl, {
+      transport: http(options.rpcUrl, {
         timeout: 30000,
       }),
     });
@@ -180,93 +273,36 @@ async function main(): Promise<void> {
       blockHashesRepo,
     );
 
-    // Check current cursor state.
-    const cursor = await cursorRepo.getCursor(pool);
-    if (!cursor) {
-      console.log(`${COLORS.RED}Error: Cursor not found for chain ${chainId}${COLORS.NC}`);
-      process.exit(1);
-    }
-
-    console.log(`${COLORS.BLUE}Current cursor position: ${cursor.fetchedToBlock.toString()}${COLORS.NC}`);
-    console.log(
-      `${COLORS.BLUE}Target cursor position after recovery: ${(args.block - 1n).toString()}${COLORS.NC}`,
-    );
-
-    if (args.block > cursor.fetchedToBlock) {
-      console.log('');
-      console.log(
-        `${COLORS.YELLOW}Warning: Reorg block (${args.block}) is ahead of current cursor (${cursor.fetchedToBlock})${COLORS.NC}`,
-      );
-      console.log(
-        `${COLORS.YELLOW}This is unusual but may be valid if cursor was manually reset.${COLORS.NC}`,
-      );
-      console.log('');
-
-      const confirmAhead = await prompt(
-        `${COLORS.BOLD}Continue anyway? (yes/no): ${COLORS.NC}`,
-      );
-      if (confirmAhead.toLowerCase() !== 'yes') {
-        console.log(`${COLORS.RED}Aborting.${COLORS.NC}`);
-        process.exit(1);
-      }
-    }
-
-    // Get count of events to be deleted.
-    const client2 = await pool.connect();
-    try {
-      const eventsCountResult = await client2.query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM ${schema}._events WHERE chain_id = $1 AND block_number >= $2`,
-        [chainId, args.block.toString()],
-      );
-      const eventsToDelete = BigInt(eventsCountResult.rows[0]?.count || '0');
-
-      const hashesCountResult = await client2.query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM ${schema}._block_hashes WHERE chain_id = $1 AND block_number >= $2`,
-        [chainId, args.block.toString()],
-      );
-      const hashesToDelete = BigInt(hashesCountResult.rows[0]?.count || '0');
-
-      console.log('');
-      console.log(`${COLORS.YELLOW}Data to be deleted:${COLORS.NC}`);
-      console.log(`  ${COLORS.RED}Events: ${eventsToDelete.toString()}${COLORS.NC}`);
-      console.log(`  ${COLORS.RED}Block hashes: ${hashesToDelete.toString()}${COLORS.NC}`);
-      console.log('');
-
-      if (eventsToDelete === 0n && hashesToDelete === 0n) {
-        console.log(
-          `${COLORS.YELLOW}Warning: No data found to delete. Recovery may be unnecessary.${COLORS.NC}`,
-        );
-        const confirmEmpty = await prompt(
-          `${COLORS.BOLD}Continue anyway? (yes/no): ${COLORS.NC}`,
-        );
-        if (confirmEmpty.toLowerCase() !== 'yes') {
-          console.log(`${COLORS.RED}Aborting.${COLORS.NC}`);
-          process.exit(1);
-        }
-      }
-    } finally {
-      client2.release();
-    }
-
-    console.log('');
-    console.log(`${COLORS.BLUE}Executing rollback...${COLORS.NC}`);
-
     // Execute handleReorg.
-    await reorgDetector.handleReorg(args.block);
+    await reorgDetector.handleReorg(block);
 
-    console.log('');
-    console.log(`${COLORS.GREEN}${COLORS.BOLD}✓ Rollback completed successfully!${COLORS.NC}`);
-    console.log('');
-    console.log('Next steps:');
+    console.log();
+    console.log(
+      boxen(chalk.bold.green('✓ Rollback completed successfully!'), {
+        padding: 1,
+        borderColor: 'green',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
+    console.log(chalk.bold('Next steps:'));
     console.log('  1. Verify cursor position in database');
     console.log('  2. Run orphan inspection script to check for orphaned domain entities:');
-    console.log(`     ${COLORS.BLUE}npm run inspect-orphans -- --block ${args.block}${COLORS.NC}`);
+    console.log(
+      `     ${chalk.blue(`npm run inspect:orphans -- --db-url "${options.dbUrl}" --schema ${options.schema} --network ${options.network} --block ${block}`)}`,
+    );
     console.log('  3. Restart the indexer to resume from the rolled-back cursor position');
-    console.log('');
+    console.log();
   } catch (error) {
-    console.log('');
-    console.log(`${COLORS.RED}${COLORS.BOLD}✗ Rollback failed!${COLORS.NC}`);
-    console.log('');
+    console.log();
+    console.log(
+      boxen(chalk.bold.red('✗ Rollback failed!'), {
+        padding: 1,
+        borderColor: 'red',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
     console.error('Error:', error);
     process.exit(1);
   } finally {
@@ -274,4 +310,17 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// CLI setup.
+const program = new Command();
+
+program
+  .name('rollback')
+  .description('Roll back the indexer state to a specific block')
+  .requiredOption('--db-url <url>', 'Database connection URL')
+  .requiredOption('--schema <name>', 'Database schema name')
+  .requiredOption('--network <name>', 'Network name (e.g., optimism, mainnet)')
+  .requiredOption('--block <number>', 'Block number to roll back to')
+  .requiredOption('--rpc-url <url>', 'RPC endpoint URL')
+  .action(rollback);
+
+program.parse();

@@ -86,10 +86,7 @@
       "compositePrimaryKeys": {
         "account_metadata_emitted_events_transaction_hash_log_index_pk": {
           "name": "account_metadata_emitted_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -161,10 +158,7 @@
       "compositePrimaryKeys": {
         "_block_hashes_chain_id_block_number_pk": {
           "name": "_block_hashes_chain_id_block_number_pk",
-          "columns": [
-            "chain_id",
-            "block_number"
-          ]
+          "columns": ["chain_id", "block_number"]
         }
       },
       "uniqueConstraints": {},
@@ -711,12 +705,7 @@
         "_events_chain_id_block_number_tx_index_log_index_unique": {
           "name": "_events_chain_id_block_number_tx_index_log_index_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "chain_id",
-            "block_number",
-            "tx_index",
-            "log_index"
-          ]
+          "columns": ["chain_id", "block_number", "tx_index", "log_index"]
         }
       },
       "policies": {},
@@ -841,10 +830,7 @@
       "compositePrimaryKeys": {
         "given_events_transaction_hash_log_index_pk": {
           "name": "given_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1447,10 +1433,7 @@
       "compositePrimaryKeys": {
         "split_events_transaction_hash_log_index_pk": {
           "name": "split_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1644,11 +1627,7 @@
         "splits_receivers_sender_account_id_receiver_account_id_relationship_type_unique": {
           "name": "splits_receivers_sender_account_id_receiver_account_id_relationship_type_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "sender_account_id",
-            "receiver_account_id",
-            "relationship_type"
-          ]
+          "columns": ["sender_account_id", "receiver_account_id", "relationship_type"]
         }
       },
       "policies": {},
@@ -1746,10 +1725,7 @@
       "compositePrimaryKeys": {
         "splits_set_events_transaction_hash_log_index_pk": {
           "name": "splits_set_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1835,10 +1811,7 @@
       "compositePrimaryKeys": {
         "squeezed_streams_events_transaction_hash_log_index_pk": {
           "name": "squeezed_streams_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1928,10 +1901,7 @@
       "compositePrimaryKeys": {
         "stream_receiver_seen_events_transaction_hash_log_index_pk": {
           "name": "stream_receiver_seen_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -2054,10 +2024,7 @@
       "compositePrimaryKeys": {
         "streams_set_events_transaction_hash_log_index_pk": {
           "name": "streams_set_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -2324,10 +2291,7 @@
       "compositePrimaryKeys": {
         "transfer_events_transaction_hash_log_index_pk": {
           "name": "transfer_events_transaction_hash_log_index_pk",
-          "columns": [
-            "transaction_hash",
-            "log_index"
-          ]
+          "columns": ["transaction_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -2352,35 +2316,22 @@
     "public.status": {
       "name": "status",
       "schema": "public",
-      "values": [
-        "pending",
-        "processed",
-        "failed"
-      ]
+      "values": ["pending", "processed", "failed"]
     },
     "public.forges": {
       "name": "forges",
       "schema": "public",
-      "values": [
-        "github",
-        "gitlab"
-      ]
+      "values": ["github", "gitlab"]
     },
     "public.linked_identity_types": {
       "name": "linked_identity_types",
       "schema": "public",
-      "values": [
-        "orcid"
-      ]
+      "values": ["orcid"]
     },
     "public.verification_status": {
       "name": "verification_status",
       "schema": "public",
-      "values": [
-        "claimed",
-        "unclaimed",
-        "pending_metadata"
-      ]
+      "values": ["claimed", "unclaimed", "pending_metadata"]
     },
     "public.relationship_type": {
       "name": "relationship_type",

@@ -259,7 +259,6 @@ export class EventRepository {
     }
   }
 
-
   /**
    * Checks if a block has any pending events.
    */

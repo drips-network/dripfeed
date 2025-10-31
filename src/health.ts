@@ -102,9 +102,10 @@ export function createHealthServer(
 
     const allHealthy = dbHealthy && rpcHealthy && indexing;
 
-    const progressPercent = latestChainBlock !== undefined && currentIndexedBlock !== undefined && latestChainBlock > 0
-      ? ((currentIndexedBlock / latestChainBlock) * 100).toFixed(2)
-      : undefined;
+    const progressPercent =
+      latestChainBlock !== undefined && currentIndexedBlock !== undefined && latestChainBlock > 0
+        ? ((currentIndexedBlock / latestChainBlock) * 100).toFixed(2)
+        : undefined;
 
     const response: HealthStatus = {
       status: allHealthy ? 'OK' : 'Unhealthy',

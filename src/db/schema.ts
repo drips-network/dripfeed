@@ -418,9 +418,7 @@ export const squeezedStreamsEvents = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.transaction_hash, table.log_index] }),
-  ],
+  (table) => [primaryKey({ columns: [table.transaction_hash, table.log_index] })],
 );
 
 // Streams set events table.

@@ -33,7 +33,13 @@ export class BlockHashesRepository {
       return;
     }
 
-    const columns: string[] = ['chain_id', 'block_number', 'block_hash', 'created_at', 'updated_at'];
+    const columns: string[] = [
+      'chain_id',
+      'block_number',
+      'block_hash',
+      'created_at',
+      'updated_at',
+    ];
     const totalParams: number = blocks.length * columns.length;
 
     if (totalParams > BlockHashesRepository._MAX_POSTGRES_PARAMS) {
@@ -45,7 +51,13 @@ export class BlockHashesRepository {
     const values: unknown[] = [];
     const rows: string[] = blocks.map((block, blockIndex) => {
       const parameterOffset: number = blockIndex * columns.length;
-      values.push(block.chainId, block.blockNumber.toString(), block.blockHash, new Date(), new Date());
+      values.push(
+        block.chainId,
+        block.blockNumber.toString(),
+        block.blockHash,
+        new Date(),
+        new Date(),
+      );
       const placeholders: string = columns
         .map((_, columnIndex) => `$${parameterOffset + columnIndex + 1}`)
         .join(', ');

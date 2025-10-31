@@ -1,22 +1,23 @@
+import { Command } from 'commander';
+import chalk from 'chalk';
+import boxen from 'boxen';
+import Table from 'cli-table3';
 import { Pool, types } from 'pg';
 
-import { config } from '../src/config.js';
 import { loadChainConfig } from '../src/chains/loadChainConfig.js';
 import { validateSchemaName } from '../src/utils/sqlValidation.js';
 
-const COLORS = {
-  RED: '\x1b[0;31m',
-  YELLOW: '\x1b[1;33m',
-  GREEN: '\x1b[0;32m',
-  BLUE: '\x1b[0;34m',
-  BOLD: '\x1b[1m',
-  NC: '\x1b[0m',
-};
+import { configureScriptLogger } from './shared/configure-logger.js';
+import { formatNumber } from './shared/formatting.js';
 
-interface Args {
+// Configure logger for debug output.
+configureScriptLogger();
+
+interface InspectOptions {
+  dbUrl: string;
   schema: string;
-  chainId: string;
-  block: bigint;
+  network: string;
+  block: string;
 }
 
 interface OrphanResult {
@@ -28,72 +29,6 @@ interface OrphanRecord {
   primaryKey: string;
   blockNumber: bigint | undefined;
   createdAt: Date;
-}
-
-function parseArgs(): Args {
-  const args = process.argv.slice(2);
-  let schema: string | undefined;
-  let chainId: string | undefined;
-  let block: bigint | undefined;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--schema' && args[i + 1]) {
-      schema = args[i + 1];
-      i++;
-    } else if (args[i] === '--chain' && args[i + 1]) {
-      chainId = args[i + 1];
-      i++;
-    } else if (args[i] === '--block' && args[i + 1]) {
-      block = BigInt(args[i + 1]!);
-      i++;
-    }
-  }
-
-  // Use config defaults if not specified.
-  // Load chain config to get chainId like main.ts does.
-  const chainConfig = loadChainConfig(config.network);
-  schema = schema || config.database.schema;
-  chainId = chainId || String(chainConfig.chainId);
-
-  if (!schema || !chainId || block === undefined) {
-    console.log(`${COLORS.RED}Error: Missing required argument --block${COLORS.NC}`);
-    console.log('');
-    console.log('Usage:');
-    console.log(
-      '  npm run inspect-orphans -- --block <blockNumber> [--schema <schema>] [--chain <chainId>]',
-    );
-    console.log('');
-    console.log('Description:');
-    console.log(
-      '  Scans domain tables for orphaned records created from the specified block onwards.',
-    );
-    console.log(
-      '  Orphaned records are entities without corresponding events (e.g., after a reorg or rollback).',
-    );
-    console.log('');
-    console.log('Arguments:');
-    console.log(
-      '  --block      Required: Block number to inspect from (scans records created after this block)',
-    );
-    console.log('  --schema     Optional: Database schema (default: from .env DB_SCHEMA)');
-    console.log('  --chain      Optional: Chain ID (default: from .env NETWORK config)');
-    console.log('');
-    console.log('Examples:');
-    console.log(
-      '  npm run inspect-orphans -- --block 19500000                              # Using .env config',
-    );
-    console.log(
-      '  npm run inspect-orphans -- --block 19500000 --schema sepolia --chain 11155111  # Override schema/chain',
-    );
-    console.log('');
-    console.log('Typical workflow:');
-    console.log('  1. Run rollback:   npm run rollback -- --block 19500000');
-    console.log('  2. Inspect orphans: npm run inspect-orphans -- --block 19500000');
-    console.log('  3. Restart indexer to re-process from block 19500000');
-    process.exit(1);
-  }
-
-  return { schema, chainId, block: block as bigint };
 }
 
 /**
@@ -167,7 +102,6 @@ async function discoverDomainTables(
   }));
 }
 
-
 async function inspectOrphans(
   pool: Pool,
   schema: string,
@@ -177,11 +111,11 @@ async function inspectOrphans(
 ): Promise<OrphanResult[]> {
   const results: OrphanResult[] = [];
 
-  console.log(`${COLORS.BLUE}Scanning domain tables for orphaned records...${COLORS.NC}`);
-  console.log('');
+  console.log(chalk.blue('Scanning domain tables for orphaned records...'));
+  console.log();
 
   for (const table of domainTables) {
-    console.log(`  Checking ${COLORS.YELLOW}${table.name}${COLORS.NC}...`);
+    console.log(`  Checking ${chalk.yellow(table.name)}...`);
 
     // Check for records where the event pointer doesn't resolve to an existing event.
     // Strategy: LEFT JOIN domain table to _events using event pointer columns.
@@ -235,79 +169,126 @@ async function inspectOrphans(
   return results;
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs();
+async function inspect(options: InspectOptions): Promise<void> {
+  const block = BigInt(options.block);
 
-  console.log(
-    `${COLORS.BOLD}${COLORS.BLUE}╔═══════════════════════════════════════════════════════════════════╗${COLORS.NC}`,
-  );
-  console.log(
-    `${COLORS.BOLD}${COLORS.BLUE}║                 🔍 ORPHAN INSPECTION SCRIPT 🔍                    ║${COLORS.NC}`,
-  );
-  console.log(
-    `${COLORS.BOLD}${COLORS.BLUE}╚═══════════════════════════════════════════════════════════════════╝${COLORS.NC}`,
-  );
-  console.log('');
+  // Load chain config from network name.
+  const chainConfig = loadChainConfig(options.network);
+  const chainId = String(chainConfig.chainId);
 
-  console.log(`${COLORS.BLUE}This script identifies orphaned domain entities.${COLORS.NC}`);
+  // Display header.
   console.log(
-    `${COLORS.BLUE}Orphaned records are entities without corresponding events (reorgs, bugs, etc).${COLORS.NC}`,
+    boxen(chalk.bold.blue('🔍 ORPHAN INSPECTION SCRIPT 🔍'), {
+      padding: 1,
+      borderColor: 'blue',
+      borderStyle: 'double',
+    }),
   );
-  console.log('');
+  console.log();
 
-  console.log(`Schema: ${COLORS.YELLOW}${args.schema}${COLORS.NC}`);
-  console.log(`Chain ID: ${COLORS.YELLOW}${args.chainId}${COLORS.NC}`);
-  console.log(`Inspecting from block: ${COLORS.YELLOW}${args.block.toString()}${COLORS.NC}`);
-  console.log('');
+  console.log(chalk.blue('This script identifies orphaned domain entities.'));
+  console.log(
+    chalk.blue('Orphaned records are entities without corresponding events (reorgs, bugs, etc).'),
+  );
+  console.log();
+
+  // Display connection info.
+  console.log(
+    boxen(chalk.bold('Database Connection & Target Information'), {
+      padding: 1,
+      borderColor: 'blue',
+      borderStyle: 'round',
+    }),
+  );
+  console.log();
+
+  const previewTable = new Table({
+    colWidths: [25, 80],
+    wordWrap: true,
+    style: { head: [] },
+  });
+
+  previewTable.push(
+    [chalk.cyan('Database URL'), options.dbUrl],
+    [chalk.cyan('Schema'), chalk.bold(options.schema)],
+    [chalk.cyan('Network'), chalk.bold(options.network)],
+    [chalk.cyan('Chain ID'), chalk.bold(chainId)],
+    [chalk.cyan('Inspecting from Block'), chalk.bold.yellow(block.toString())],
+  );
+
+  console.log(previewTable.toString());
+  console.log();
 
   // Configure pg types.
   types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
 
   const pool = new Pool({
-    connectionString: config.database.url,
+    connectionString: options.dbUrl,
   });
 
   try {
-    const schema = validateSchemaName(args.schema);
-
-    // Check database connection.
+    // Test connection.
     await pool.query('SELECT 1');
+
+    const schema = validateSchemaName(options.schema);
 
     // Check if cursor exists.
     const cursorResult = await pool.query<{ fetched_to_block: string }>(
       `SELECT fetched_to_block FROM ${schema}._cursor WHERE chain_id = $1`,
-      [args.chainId],
+      [chainId],
     );
 
+    // Validate schema/network compatibility.
     if (cursorResult.rows.length === 0) {
-      console.log(`${COLORS.RED}Error: No cursor found for chain ${args.chainId}${COLORS.NC}`);
+      console.log(
+        boxen(
+          chalk.bold.red(
+            `❌ No cursor found for chain ID ${chainId} (network: ${options.network}) in schema ${options.schema}`,
+          ),
+          {
+            padding: 1,
+            borderColor: 'red',
+            borderStyle: 'round',
+          },
+        ),
+      );
+      console.log();
+      console.log(chalk.yellow('Possible issues:'));
+      console.log(`  1. Wrong network name (check your network configuration)`);
+      console.log(`  2. Wrong schema name`);
+      console.log(`  3. Schema not initialized yet`);
+      console.log(`  4. Network/schema mismatch (one schema per chain)`);
       process.exit(1);
     }
 
     const currentCursor = BigInt(cursorResult.rows[0]!.fetched_to_block);
-    console.log(`${COLORS.BLUE}Current cursor position: ${currentCursor.toString()}${COLORS.NC}`);
-    console.log('');
+    console.log(chalk.blue(`Current cursor position: ${currentCursor.toString()}`));
+    console.log();
 
     // Discover domain tables from database schema.
     const domainTables = await discoverDomainTables(pool, schema);
-    console.log(
-      `${COLORS.GREEN}✓ Discovered ${domainTables.length} domain tables from schema${COLORS.NC}`,
-    );
+    console.log(chalk.green(`✓ Discovered ${domainTables.length} domain tables from schema`));
     if (domainTables.length > 0) {
       const tableList = domainTables.map((table) => table.name).join(', ');
-      console.log(`${COLORS.BLUE}Tables inspected: ${tableList}${COLORS.NC}`);
+      console.log(chalk.blue(`Tables inspected: ${tableList}`));
     } else {
-      console.log(`${COLORS.YELLOW}No domain tables discovered for inspection${COLORS.NC}`);
+      console.log(chalk.yellow('No domain tables discovered for inspection'));
     }
-    console.log('');
+    console.log();
 
     // Inspect orphans.
-    const results = await inspectOrphans(pool, schema, args.chainId, args.block, domainTables);
+    const results = await inspectOrphans(pool, schema, chainId, block, domainTables);
 
     // Display results.
-    console.log('');
-    console.log(`${COLORS.BOLD}${COLORS.BLUE}=== INSPECTION RESULTS ===${COLORS.NC}`);
-    console.log('');
+    console.log();
+    console.log(
+      boxen(chalk.bold('Inspection Results'), {
+        padding: 1,
+        borderColor: 'magenta',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
 
     let totalOrphans = 0;
     const tablesWithOrphans: string[] = [];
@@ -319,7 +300,7 @@ async function main(): Promise<void> {
       if (orphanCount > 0) {
         tablesWithOrphans.push(result.tableName);
         console.log(
-          `${COLORS.YELLOW}${result.tableName}${COLORS.NC}: ${COLORS.RED}${orphanCount} potential orphan(s)${COLORS.NC}`,
+          `${chalk.yellow(result.tableName)}: ${chalk.red(`${orphanCount} potential orphan(s)`)}`,
         );
 
         if (orphanCount <= 20) {
@@ -346,37 +327,50 @@ async function main(): Promise<void> {
           }
           console.log(`  ... and ${orphanCount - 5} more`);
         }
-        console.log('');
+        console.log();
       } else {
-        console.log(`${COLORS.GREEN}${result.tableName}${COLORS.NC}: No orphans detected`);
+        console.log(`${chalk.green(result.tableName)}: No orphans detected`);
       }
     }
 
-    console.log('');
-    console.log(`${COLORS.BOLD}${COLORS.BLUE}=== SUMMARY ===${COLORS.NC}`);
-    console.log('');
+    console.log();
+    console.log(
+      boxen(chalk.bold('Summary'), {
+        padding: 1,
+        borderColor: 'cyan',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
 
     if (totalOrphans === 0) {
-      console.log(`${COLORS.GREEN}✓ No orphaned records detected!${COLORS.NC}`);
-      console.log('');
+      console.log(chalk.green('✓ No orphaned records detected!'));
+      console.log();
       console.log('The database appears consistent with the current chain state.');
     } else {
-      console.log(
-        `${COLORS.YELLOW}⚠️  Found ${totalOrphans} potential orphaned record(s) across ${tablesWithOrphans.length} table(s)${COLORS.NC}`,
+      const summaryTable = new Table({
+        head: [chalk.cyan('Metric'), chalk.cyan('Value')],
+        style: { head: [] },
+      });
+
+      summaryTable.push(
+        ['Total Orphaned Records', chalk.red(formatNumber(totalOrphans))],
+        ['Tables Affected', chalk.yellow(tablesWithOrphans.length.toString())],
       );
-      console.log('');
-      console.log('Affected tables:');
+
+      console.log(summaryTable.toString());
+      console.log();
+
+      console.log(chalk.yellow('Affected tables:'));
       for (const table of tablesWithOrphans) {
         console.log(`  - ${table}`);
       }
-      console.log('');
-      console.log(`${COLORS.YELLOW}${COLORS.BOLD}IMPORTANT:${COLORS.NC}`);
-      console.log(
-        '  This script uses heuristics and may report false positives, especially without --block.',
-      );
+      console.log();
+      console.log(chalk.bold.yellow('IMPORTANT:'));
+      console.log('  This script uses heuristics and may report false positives.');
       console.log('  Orphaned records should be manually reviewed before deletion.');
-      console.log('');
-      console.log(`${COLORS.BLUE}Recommended Actions:${COLORS.NC}`);
+      console.log();
+      console.log(chalk.blue('Recommended Actions:'));
       console.log('  1. Review the listed records and verify they are actually orphaned');
       console.log(
         '  2. Check if corresponding events exist in _events table that created these records',
@@ -387,11 +381,17 @@ async function main(): Promise<void> {
       );
     }
 
-    console.log('');
+    console.log();
   } catch (error) {
-    console.log('');
-    console.log(`${COLORS.RED}${COLORS.BOLD}✗ Orphan inspection failed!${COLORS.NC}`);
-    console.log('');
+    console.log();
+    console.log(
+      boxen(chalk.bold.red('✗ Orphan inspection failed!'), {
+        padding: 1,
+        borderColor: 'red',
+        borderStyle: 'round',
+      }),
+    );
+    console.log();
     console.error('Error:', error);
     process.exit(1);
   } finally {
@@ -399,4 +399,16 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// CLI setup.
+const program = new Command();
+
+program
+  .name('inspect:orphans')
+  .description('Inspect database for orphaned domain entities after a rollback')
+  .requiredOption('--db-url <url>', 'Database connection URL')
+  .requiredOption('--schema <name>', 'Database schema name')
+  .requiredOption('--network <name>', 'Network name (e.g., optimism, mainnet)')
+  .requiredOption('--block <number>', 'Block number to inspect from')
+  .action(inspect);
+
+program.parse();
