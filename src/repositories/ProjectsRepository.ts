@@ -48,6 +48,7 @@ export class ProjectsRepository {
   constructor(
     private readonly client: PoolClient,
     private readonly schema: string,
+    private readonly chainId: string,
   ) {
     validateSchemaName(schema);
   }
@@ -89,6 +90,14 @@ export class ProjectsRepository {
           existing_owner: existing.owner_address,
         });
       } else {
+        const existingPointer: EventPointer = {
+          last_event_block: existing.last_event_block,
+          last_event_tx_index: existing.last_event_tx_index,
+          last_event_log_index: existing.last_event_log_index,
+        };
+
+        const sourceEventExists = await this._eventPointerExists(existingPointer);
+
         const isReplay =
           eventPointer.last_event_block < existing.last_event_block ||
           (eventPointer.last_event_block === existing.last_event_block &&
@@ -97,7 +106,7 @@ export class ProjectsRepository {
             eventPointer.last_event_tx_index === existing.last_event_tx_index &&
             eventPointer.last_event_log_index <= existing.last_event_log_index);
 
-        if (!isReplay) {
+        if (!isReplay && sourceEventExists) {
           // This is a new event attempting to reset a claimed project (potential attack).
           // Skip reset and return existing project unchanged.
           logger.warn('owner_update_requested_ignored_claimed_project', {
@@ -107,6 +116,17 @@ export class ProjectsRepository {
             request_event_block: eventPointer.last_event_block.toString(),
           });
           return existing;
+        }
+
+        if (!sourceEventExists) {
+          logger.warn('owner_update_requested_missing_source_event', {
+            account_id: data.account_id,
+            existing_owner: existing.owner_address,
+            expected_block: existing.last_event_block.toString(),
+            replay_block: eventPointer.last_event_block.toString(),
+            message:
+              'Stored event pointer no longer exists in _events; treating incoming event as replay.',
+          });
         }
 
         // This is a replay event (reorg recovery). Proceed with reset.
@@ -322,5 +342,27 @@ export class ProjectsRepository {
 
     const project = projectSchema.parse(result.rows[0]);
     return { success: true, data: project };
+  }
+
+  private async _eventPointerExists(pointer: EventPointer): Promise<boolean> {
+    const result = await this.client.query(
+      `
+      SELECT 1
+      FROM ${this.schema}._events
+      WHERE chain_id = $1
+        AND block_number = $2
+        AND tx_index = $3
+        AND log_index = $4
+      LIMIT 1
+    `,
+      [
+        this.chainId,
+        pointer.last_event_block.toString(),
+        pointer.last_event_tx_index,
+        pointer.last_event_log_index,
+      ],
+    );
+
+    return result.rowCount > 0;
   }
 }

@@ -187,7 +187,7 @@ export class EventProcessor {
    */
   private _buildHandlerContext(client: PoolClient): HandlerContext {
     return {
-      projectsRepo: new ProjectsRepository(client, this._schema),
+      projectsRepo: new ProjectsRepository(client, this._schema, this._chainId),
       linkedIdentitiesRepo: new LinkedIdentitiesRepository(client, this._schema),
       splitsRepo: new SplitsRepository(client, this._schema),
       dripListsRepo: new DripListsRepository(client, this._schema),
