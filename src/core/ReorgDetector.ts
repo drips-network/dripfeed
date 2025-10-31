@@ -90,7 +90,6 @@ export class ReorgDetector {
     });
 
     let earliestReorgBlock: bigint | null = null;
-    let reorgDepth = 0n;
 
     // Loop to widen window backwards until hashes realign.
     while (checkFrom >= this._startBlock) {
@@ -131,6 +130,22 @@ export class ReorgDetector {
         break;
       }
 
+      if (earliestReorgBlock !== null) {
+        const detectedDepth = tail - earliestReorgBlock;
+        if (detectedDepth > BigInt(MAX_REORG_DEPTH)) {
+          const errorMsg = `Reorg depth exceeds safety limit of ${MAX_REORG_DEPTH} blocks. Detected depth: ${detectedDepth}. This may indicate a critical chain issue or misconfiguration.`;
+          logger.error('reorg_depth_exceeded', {
+            schema: this._schema,
+            chain: this._chainId,
+            reorgDepth: detectedDepth.toString(),
+            maxDepth: MAX_REORG_DEPTH,
+            tail: tail.toString(),
+            earliestReorgBlock: earliestReorgBlock.toString(),
+          });
+          throw new Error(errorMsg);
+        }
+      }
+
       // Widen window backwards.
       const previousCheckFrom = checkFrom;
       checkFrom =
@@ -144,25 +159,14 @@ export class ReorgDetector {
       }
 
       // Calculate reorg depth and check against limit.
-      reorgDepth = tail - checkFrom;
-      if (reorgDepth > BigInt(MAX_REORG_DEPTH)) {
-        const errorMsg = `Reorg depth exceeds safety limit of ${MAX_REORG_DEPTH} blocks. Detected depth: ${reorgDepth}. This may indicate a critical chain issue or misconfiguration.`;
-        logger.error('reorg_depth_exceeded', {
-          schema: this._schema,
-          chain: this._chainId,
-          reorgDepth: reorgDepth.toString(),
-          maxDepth: MAX_REORG_DEPTH,
-          tail: tail.toString(),
-          checkFrom: checkFrom.toString(),
-        });
-        throw new Error(errorMsg);
-      }
+      const currentDepth =
+        earliestReorgBlock !== null ? tail - earliestReorgBlock : tail - checkFrom;
 
       logger.debug('reorg_widening_window', {
         schema: this._schema,
         chain: this._chainId,
         newCheckFrom: checkFrom.toString(),
-        currentDepth: reorgDepth.toString(),
+        currentDepth: currentDepth.toString(),
       });
     }
 
