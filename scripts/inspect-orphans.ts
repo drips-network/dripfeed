@@ -293,6 +293,12 @@ async function main(): Promise<void> {
     console.log(
       `${COLORS.GREEN}✓ Discovered ${domainTables.length} domain tables from schema${COLORS.NC}`,
     );
+    if (domainTables.length > 0) {
+      const tableList = domainTables.map((table) => table.name).join(', ');
+      console.log(`${COLORS.BLUE}Tables inspected: ${tableList}${COLORS.NC}`);
+    } else {
+      console.log(`${COLORS.YELLOW}No domain tables discovered for inspection${COLORS.NC}`);
+    }
     console.log('');
 
     // Inspect orphans.

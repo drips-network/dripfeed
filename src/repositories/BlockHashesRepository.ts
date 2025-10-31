@@ -26,8 +26,7 @@ export class BlockHashesRepository {
   }
 
   /**
-   * Inserts multiple block hashes into the database.
-   * Ignores conflicts to ensure replayability.
+   * Inserts or refreshes block hashes to keep canonical data current.
    */
   async insertBlockHashes(tx: PoolClient, blocks: IBlockHash[]): Promise<void> {
     if (blocks.length === 0) {
@@ -56,7 +55,10 @@ export class BlockHashesRepository {
     const sql: string = `
       INSERT INTO ${this._schema}._block_hashes (${columns.join(', ')})
       VALUES ${rows.join(', ')}
-      ON CONFLICT (chain_id, block_number) DO NOTHING
+      ON CONFLICT (chain_id, block_number) DO UPDATE
+        SET
+          block_hash = EXCLUDED.block_hash,
+          updated_at = EXCLUDED.updated_at
     `;
 
     await tx.query(sql, values);
@@ -91,14 +93,15 @@ export class BlockHashesRepository {
     tx: PoolClient,
     chainId: string,
     fromBlock: bigint,
-  ): Promise<void> {
-    await tx.query(
+  ): Promise<number> {
+    const result = await tx.query(
       `
       DELETE FROM ${this._schema}._block_hashes
       WHERE chain_id = $1 AND block_number >= $2
     `,
       [chainId, fromBlock.toString()],
     );
+    return result.rowCount ?? 0;
   }
 
   /**

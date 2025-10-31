@@ -113,6 +113,9 @@ export class ReorgDetector {
             block: block.number.toString(),
             storedHash,
             currentHash: block.hash,
+            windowFrom: checkFrom.toString(),
+            windowTo: tail.toString(),
+            confirmations: this._confirmations,
           });
 
           // Track minimum instead of overwriting.
@@ -249,11 +252,16 @@ export class ReorgDetector {
       await this._deleteEventLogTables(client, reorgBlock);
 
       // Delete block hashes from reorg block onwards.
-      await this._blockHashesRepo.deleteBlockHashesFromBlock(client, this._chainId, reorgBlock);
+      const deletedHashCount = await this._blockHashesRepo.deleteBlockHashesFromBlock(
+        client,
+        this._chainId,
+        reorgBlock,
+      );
       logger.info('reorg_block_hashes_deleted', {
         schema: this._schema,
         chain: this._chainId,
         fromBlock: reorgBlock.toString(),
+        deletedCount: deletedHashCount,
       });
 
       // Reset cursor to reorgBlock - 1.
