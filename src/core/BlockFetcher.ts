@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Log } from 'viem';
 import { SpanStatusCode } from '@opentelemetry/api';
 
@@ -12,6 +12,7 @@ import { getTracer, getMeter } from '../telemetry.js';
 
 import type { RpcClient, BlockSummary } from './RpcClient.js';
 import type { EventDecoder } from './EventDecoder.js';
+import { MAX_REORG_DEPTH } from './ReorgDetector.js';
 
 const tracer = getTracer();
 const meter = getMeter();
@@ -20,11 +21,6 @@ const eventsInsertedCounter = meter.createCounter('db.events.inserted', {
   description: 'Total number of raw events inserted into database',
 });
 
-/**
- * Minimum block hash window to maintain for reorg detection.
- * Aligned with MAX_REORG_DEPTH in ReorgDetector.
- */
-const MIN_HASH_WINDOW = 100;
 const HISTORIC_BLOCK_CHUNK_SIZE = 10;
 
 type FetchResult = {
@@ -77,10 +73,12 @@ export class BlockFetcher {
   }
 
   /**
-   * Fetches blocks, decodes logs, and stores events atomically.
-   * Returns null if no new blocks to fetch.
+   * Fetches next batch of blocks, decodes logs, and stores events in a single transaction.
+   * Advances the cursor on success.
+   *
+   * @returns Fetch statistics or null if already caught up to safe block.
    */
-  async fetch(): Promise<FetchResult | null> {
+  async fetchAndStore(): Promise<FetchResult | null> {
     const span = tracer.startSpan('indexer.fetch', {
       attributes: {
         'chain.id': this._chainId,
@@ -91,7 +89,7 @@ export class BlockFetcher {
     try {
       const endTimer = logger.startTimer('block_fetch');
       const latestBlock = await this._rpc.getLatestBlockNumber();
-      const safeBlock = await this._rpc.getSafeBlockNumber(this._confirmations);
+      const safeBlock = this._rpc.getSafeBlockNumber(latestBlock, this._confirmations);
 
       const totalEvents = await withDbRetry(async () => {
         const client = await this._pool.connect();
@@ -103,7 +101,6 @@ export class BlockFetcher {
           await client.query('BEGIN');
           transactionStarted = true;
 
-          // Read cursor with FOR UPDATE lock to prevent race conditions.
           const cursor = await this._cursorRepo.getCursorForUpdate(client);
           if (!cursor) {
             throw new Error('Cursor not initialized');
@@ -145,7 +142,13 @@ export class BlockFetcher {
 
           try {
             logs = await this._rpc.getLogs(this._decoder.contractAddresses, fromBlock, toBlock);
-            blockSummaries = await this._collectBlockSummaries(logs, fromBlock, toBlock, safeBlock);
+            blockSummaries = await this._collectBlockSummaries(
+              client,
+              logs,
+              fromBlock,
+              toBlock,
+              safeBlock,
+            );
 
             rpcSpan.setAttribute('rpc.log_count', logs.length);
             rpcSpan.setAttribute('rpc.block_count', blockSummaries.length);
@@ -174,9 +177,9 @@ export class BlockFetcher {
           }
 
           // Prune old block hashes no longer needed for reorg detection.
-          // Keep max(MIN_HASH_WINDOW, 3x confirmations) to align with MAX_REORG_DEPTH safety limit.
+          // Keep max(MAX_REORG_DEPTH, 3x confirmations) for safety.
           // Runs on every fetch to ensure cleanup even when caught up.
-          const minHashWindow = Math.max(MIN_HASH_WINDOW, this._confirmations * 3);
+          const minHashWindow = Math.max(MAX_REORG_DEPTH, this._confirmations * 3);
           const pruneBeforeBlock = toBlock - BigInt(minHashWindow);
           if (pruneBeforeBlock > 0n) {
             await this._blockHashesRepo.deleteBlockHashesBefore(
@@ -378,6 +381,7 @@ export class BlockFetcher {
   }
 
   private async _collectBlockSummaries(
+    client: PoolClient,
     logs: readonly Log[],
     fromBlock: bigint,
     toBlock: bigint,
@@ -392,7 +396,7 @@ export class BlockFetcher {
     );
 
     const minReorgWindow: number =
-      this._confirmations === 0 ? MIN_HASH_WINDOW : this._confirmations;
+      this._confirmations === 0 ? MAX_REORG_DEPTH : this._confirmations;
     const reorgWindowStart: bigint = safeBlock - BigInt(minReorgWindow);
     const blockMap: Map<bigint, BlockSummary> = new Map();
 
@@ -400,13 +404,76 @@ export class BlockFetcher {
 
     if (toBlock >= reorgWindowStart) {
       const contiguousStart: bigint = fromBlock >= reorgWindowStart ? fromBlock : reorgWindowStart;
-      const contiguousBlocks: readonly BlockSummary[] = await this._rpc.getBlocksInRange(
+
+      // Query which blocks in the reorg window already have hashes stored.
+      // Race condition: If a reorg occurs after ReorgDetector.detect() but before this fetch,
+      // we may skip fetching reorged blocks (using stale cached hashes). This is acceptable
+      // because ReorgDetector will detect the mismatch in the next iteration and trigger cleanup.
+      // The system is self-correcting with 1-iteration delay.
+      const storedBlockNumbers = await this._blockHashesRepo.getBlockNumbersWithHashes(
+        client,
+        this._chainId,
         contiguousStart,
         toBlock,
       );
 
-      for (const block of contiguousBlocks) {
-        blockMap.set(block.number, block);
+      // Build set of event blocks for fast lookup.
+      const eventBlockSet = new Set(eventBlockNumbers);
+
+      // Only fetch blocks that either have events (need timestamp) OR don't have stored hashes.
+      const blocksToFetch: bigint[] = [];
+      for (let n = contiguousStart; n <= toBlock; n += 1n) {
+        const hasEvent = eventBlockSet.has(n);
+        const hasStoredHash = storedBlockNumbers.has(n);
+
+        if (hasEvent || !hasStoredHash) {
+          blocksToFetch.push(n);
+        }
+      }
+
+      if (blocksToFetch.length > 0) {
+        logger.debug('fetcher_optimized_block_fetch', {
+          schema: this._schema,
+          chain: this._chainId,
+          contiguousRange: `${contiguousStart}-${toBlock}`,
+          totalRange: Number(toBlock - contiguousStart + 1n),
+          alreadyStored: storedBlockNumbers.size,
+          toFetch: blocksToFetch.length,
+          rpcSavings: `${(((Number(toBlock - contiguousStart + 1n) - blocksToFetch.length) / Number(toBlock - contiguousStart + 1n)) * 100).toFixed(1)}%`,
+        });
+
+        // Fetch only the necessary blocks using RpcClient's built-in concurrency control.
+        // Check if blocks form a contiguous range for more efficient fetching.
+        const isContiguous =
+          blocksToFetch.length > 0 &&
+          blocksToFetch.every((blockNum, idx) => {
+            if (idx === 0) return true;
+            const prev = blocksToFetch[idx - 1];
+            return prev !== undefined && blockNum === prev + 1n;
+          });
+
+        if (isContiguous && blocksToFetch.length > 1) {
+          const rangeStart = blocksToFetch[0]!;
+          const rangeEnd = blocksToFetch[blocksToFetch.length - 1]!;
+          const rangeBlocks = await this._rpc.getBlocksInRange(rangeStart, rangeEnd);
+          for (const block of rangeBlocks) {
+            blockMap.set(block.number, block);
+          }
+        } else {
+          // For non-contiguous blocks, fetch individually in chunks.
+          const FETCH_CHUNK_SIZE = 10;
+          for (let i = 0; i < blocksToFetch.length; i += FETCH_CHUNK_SIZE) {
+            const chunk = blocksToFetch.slice(i, i + FETCH_CHUNK_SIZE);
+            const blocks = await Promise.all(
+              chunk.map((blockNumber) => this._rpc.getBlock(blockNumber)),
+            );
+            for (const block of blocks) {
+              if (block !== null) {
+                blockMap.set(block.number, block);
+              }
+            }
+          }
+        }
       }
 
       remainingEventBlocks = eventBlockNumbers.filter(

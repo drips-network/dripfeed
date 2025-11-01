@@ -13,13 +13,9 @@ import type { RpcClient } from './RpcClient.js';
  * Maximum reorg depth to prevent unbounded backwards search.
  * If a reorg exceeds this depth, the detector will fail fast.
  * Set to 100 blocks as a reasonable limit for most chains.
- * This value aligns with MIN_HASH_WINDOW in BlockFetcher.
  */
-const MAX_REORG_DEPTH = 100;
+export const MAX_REORG_DEPTH = 100;
 
-/**
- * Detects blockchain reorganizations.
- */
 export class ReorgDetector {
   private readonly _pool: Pool;
   private readonly _schema: string;
@@ -57,8 +53,7 @@ export class ReorgDetector {
   }
 
   /**
-   * Detects reorgs by comparing stored hashes against current chain state.
-   * Scans backwards from the cursor (up to MAX_REORG_DEPTH) until hashes realign.
+   * Detects reorgs.
    * Returns the earliest reorg block number if detected, null otherwise.
    */
   async detect(): Promise<bigint | null> {
@@ -70,11 +65,15 @@ export class ReorgDetector {
     }
 
     const tail = cursor.fetchedToBlock;
-    const maxLookback = tail >= BigInt(MAX_REORG_DEPTH - 1)
-      ? tail - BigInt(MAX_REORG_DEPTH - 1)
-      : this._startBlock;
-    const scanFrom =
-      maxLookback > this._startBlock ? maxLookback : this._startBlock;
+
+    // Calculate how far back to scan for reorgs (up to MAX_REORG_DEPTH blocks).
+    // If we have fewer than MAX_REORG_DEPTH blocks, scan from `startBlock` instead.
+    const maxLookback =
+      tail >= BigInt(MAX_REORG_DEPTH - 1) ? tail - BigInt(MAX_REORG_DEPTH - 1) : this._startBlock;
+
+    // Clamp to startBlock in case maxLookback falls before it.
+    // This prevents scanning blocks that were never indexed (e.g., starting at block 1000 but maxLookback = 950).
+    const scanFrom = maxLookback > this._startBlock ? maxLookback : this._startBlock;
 
     logger.debug('reorg_detection_started', {
       schema: this._schema,
@@ -83,42 +82,50 @@ export class ReorgDetector {
       checkTo: tail.toString(),
     });
 
-    const storedHashes = await this._getStoredBlockHashes(scanFrom, tail);
+    // Preload all stored hashes for the window.
+    const storedHashes = await this._blockHashesRepo.getBlockHashesInRange(
+      this._chainId,
+      scanFrom,
+      tail,
+    );
     if (storedHashes.size === 0) {
       endTimer();
       return null;
     }
 
-    const currentBlocks = await this._rpc.getBlocksInRange(scanFrom, tail);
-    const currentMap = new Map<bigint, string>();
-    for (const block of currentBlocks) {
-      currentMap.set(block.number, block.hash);
-    }
-
     let earliestReorgBlock: bigint | null = null;
+    let rpcCallCount = 0;
 
+    // Scan backwards, fetching blocks one-by-one from RPC.
+    // Exit when we find the first hash match after detecting mismatches.
     for (
       let blockNumber = tail;
       blockNumber >= scanFrom && blockNumber >= this._startBlock;
       blockNumber -= 1n
     ) {
       const storedHash = storedHashes.get(blockNumber);
+      // No stored hash: Block was never indexed (e.g., null round on Filecoin).
       if (!storedHash) {
-        break;
+        continue;
       }
 
-      const currentHash = currentMap.get(blockNumber);
-      if (!currentHash) {
-        break;
+      // Fetch current block from RPC on-demand.
+      const currentBlock = await this._rpc.getBlock(blockNumber);
+      rpcCallCount++;
+
+      // No current block: Block doesn't exist on chain (e.g., null round on Filecoin).
+      if (!currentBlock) {
+        continue;
       }
 
-      if (currentHash !== storedHash) {
+      // Hash mismatch: Reorg detected at this block.
+      if (currentBlock.hash !== storedHash) {
         logger.warn('reorg_hash_mismatch', {
           schema: this._schema,
           chain: this._chainId,
           block: blockNumber.toString(),
           storedHash,
-          currentHash,
+          currentHash: currentBlock.hash,
           windowFrom: scanFrom.toString(),
           windowTo: tail.toString(),
           confirmations: this._confirmations,
@@ -126,14 +133,35 @@ export class ReorgDetector {
 
         earliestReorgBlock = blockNumber;
       } else if (earliestReorgBlock !== null) {
+        // Hash match after previous mismatch: Found where chains realigned.
+        logger.debug('reorg_realignment_found', {
+          schema: this._schema,
+          chain: this._chainId,
+          realignmentBlock: blockNumber.toString(),
+          earliestReorgBlock: earliestReorgBlock.toString(),
+          rpcCallsSaved: Number(blockNumber - scanFrom),
+        });
+        break;
+      } else {
+        // Hash match on first check: No reorg detected.
+        logger.debug('reorg_early_exit', {
+          schema: this._schema,
+          chain: this._chainId,
+          checkedBlock: blockNumber.toString(),
+          rpcCalls: rpcCallCount,
+          rpcCallsSaved: Number(blockNumber - scanFrom),
+        });
         break;
       }
     }
 
     endTimer();
 
+    // Reorg detected: Validate depth and log appropriately.
     if (earliestReorgBlock !== null) {
       const detectedDepth = tail - earliestReorgBlock;
+
+      // Depth exceeds limit: This is a critical error.
       if (detectedDepth > BigInt(MAX_REORG_DEPTH)) {
         const errorMsg = `Reorg depth exceeds safety limit of ${MAX_REORG_DEPTH} blocks. Detected depth: ${detectedDepth}. This may indicate a critical chain issue or misconfiguration.`;
         logger.error('reorg_depth_exceeded', {
@@ -147,6 +175,7 @@ export class ReorgDetector {
         throw new Error(errorMsg);
       }
 
+      // Auto-recovery enabled: Log as warning.
       if (this._autoHandleReorgs) {
         logger.warn('reorg_detected', {
           schema: this._schema,
@@ -156,6 +185,7 @@ export class ReorgDetector {
           message: 'Reorg detected. Auto-recovery enabled.',
         });
       } else {
+        // Auto-recovery disabled: Log as error since manual intervention required.
         logger.error('reorg_detected', {
           schema: this._schema,
           chain: this._chainId,
@@ -205,9 +235,12 @@ export class ReorgDetector {
       }
 
       // Calculate target cursor position (reorgBlock - 1).
-      // The cursor is initialized to startBlock - 1, so we allow rewinding to that position.
+      // The cursor represents "last fully processed block", so rewinding to reorgBlock - 1
+      // ensures the next fetch starts from reorgBlock.
       const targetCursor = reorgBlock - 1n;
       const minAllowedCursor = this._startBlock - 1n;
+
+      // Prevent rewinding before startBlock (blocks that were never indexed).
       if (targetCursor < minAllowedCursor) {
         throw new Error(
           `Reorg block ${reorgBlock} would rewind cursor to ${targetCursor}, which is below the minimum allowed cursor position ${minAllowedCursor} (startBlock - 1). This indicates a critical chain issue.`,
@@ -352,23 +385,5 @@ export class ReorgDetector {
         });
       }
     }
-  }
-
-  /**
-   * Retrieves stored block hashes for reorg detection.
-   */
-  private async _getStoredBlockHashes(
-    fromBlock: bigint,
-    toBlock: bigint,
-  ): Promise<Map<bigint, string>> {
-    const result = await this._pool.query<{ block_number: string; block_hash: string }>(
-      `SELECT block_number, block_hash FROM ${this._schema}._block_hashes WHERE chain_id = $1 AND block_number >= $2 AND block_number <= $3`,
-      [this._chainId, fromBlock.toString(), toBlock.toString()],
-    );
-    const map = new Map<bigint, string>();
-    for (const row of result.rows) {
-      map.set(BigInt(row.block_number), row.block_hash);
-    }
-    return map;
   }
 }

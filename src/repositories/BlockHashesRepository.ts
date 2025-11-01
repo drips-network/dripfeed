@@ -98,6 +98,33 @@ export class BlockHashesRepository {
   }
 
   /**
+   * Retrieves block hashes for a range of blocks.
+   * Returns a Map of block number to block hash.
+   */
+  async getBlockHashesInRange(
+    chainId: string,
+    fromBlock: bigint,
+    toBlock: bigint,
+    tx?: PoolClient,
+  ): Promise<Map<bigint, string>> {
+    const db = tx ?? this._db;
+    const result = await db.query<{ block_number: string; block_hash: string }>(
+      `
+      SELECT block_number, block_hash
+      FROM ${this._schema}._block_hashes
+      WHERE chain_id = $1 AND block_number >= $2 AND block_number <= $3
+    `,
+      [chainId, fromBlock.toString(), toBlock.toString()],
+    );
+
+    const map = new Map<bigint, string>();
+    for (const row of result.rows) {
+      map.set(BigInt(row.block_number), row.block_hash);
+    }
+    return map;
+  }
+
+  /**
    * Deletes all block hashes from a specific block number onwards for a given chain.
    * Used during reorg handling to remove invalidated blocks.
    */
@@ -132,5 +159,32 @@ export class BlockHashesRepository {
     `,
       [chainId, beforeBlock.toString()],
     );
+  }
+
+  /**
+   * Retrieves which blocks in a range already have hashes stored.
+   * Returns a Set of block numbers that exist in the database.
+   * Used by BlockFetcher to avoid redundant RPC calls for blocks with existing hashes.
+   */
+  async getBlockNumbersWithHashes(
+    tx: PoolClient,
+    chainId: string,
+    fromBlock: bigint,
+    toBlock: bigint,
+  ): Promise<Set<bigint>> {
+    const result = await tx.query<{ block_number: string }>(
+      `
+      SELECT block_number
+      FROM ${this._schema}._block_hashes
+      WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3
+    `,
+      [chainId, fromBlock.toString(), toBlock.toString()],
+    );
+
+    const stored = new Set<bigint>();
+    for (const row of result.rows) {
+      stored.add(BigInt(row.block_number));
+    }
+    return stored;
   }
 }

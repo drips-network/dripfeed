@@ -54,8 +54,7 @@ export class RpcClient {
   /**
    * Returns safe block number accounting for required confirmations.
    */
-  async getSafeBlockNumber(confirmations: number): Promise<bigint> {
-    const head = await this.getLatestBlockNumber();
+  getSafeBlockNumber(head: bigint, confirmations: number): bigint {
     const offset = BigInt(confirmations);
     if (head <= offset) {
       throw new Error(

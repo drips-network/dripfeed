@@ -165,7 +165,7 @@ export class Indexer {
             }
           }
 
-          const fetchResult = await this._fetcher.fetch();
+          const fetchResult = await this._fetcher.fetchAndStore();
           await this._processor.processBatch();
 
           consecutiveErrors = 0;

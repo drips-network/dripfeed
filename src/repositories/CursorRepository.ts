@@ -33,7 +33,7 @@ export class CursorRepository {
   }
 
   /**
-   * Retrieves the cursor for the current chain (standalone read, outside transactions).
+   * Retrieves the cursor for the current chain.
    */
   async getCursor(pool: Pool): Promise<Cursor | null> {
     const result = await pool.query(`SELECT * FROM ${this._schema}._cursor WHERE chain_id = $1`, [
