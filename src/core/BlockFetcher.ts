@@ -417,12 +417,14 @@ export class BlockFetcher {
     if (remainingEventBlocks.length > 0) {
       for (let index = 0; index < remainingEventBlocks.length; index += HISTORIC_BLOCK_CHUNK_SIZE) {
         const chunk = remainingEventBlocks.slice(index, index + HISTORIC_BLOCK_CHUNK_SIZE);
-        const historicBlocks: readonly BlockSummary[] = await Promise.all(
+        const historicBlocks: readonly (BlockSummary | null)[] = await Promise.all(
           chunk.map((blockNumber) => this._rpc.getBlock(blockNumber)),
         );
 
         for (const block of historicBlocks) {
-          blockMap.set(block.number, block);
+          if (block !== null) {
+            blockMap.set(block.number, block);
+          }
         }
       }
     }

@@ -67,6 +67,7 @@ export class RpcClient {
 
   /**
    * Fetches block metadata for a range with controlled concurrency.
+   * Skips null rounds (e.g., Filecoin epochs with no block).
    */
   async getBlocksInRange(fromBlock: bigint, toBlock: bigint): Promise<BlockSummary[]> {
     if (toBlock < fromBlock) {
@@ -79,26 +80,9 @@ export class RpcClient {
 
     for (let i = 0; i < blockNumbers.length; i += this._concurrency) {
       const chunk = blockNumbers.slice(i, i + this._concurrency);
-      const blocks = await Promise.all(
-        chunk.map((blockNumber) =>
-          this._withRetry(
-            () =>
-              this._client.getBlock({
-                blockNumber,
-                includeTransactions: false,
-              }),
-            'getBlock',
-          ),
-        ),
-      );
+      const blocks = await Promise.all(chunk.map((blockNumber) => this.getBlock(blockNumber)));
 
-      results.push(
-        ...blocks.map((block) => ({
-          number: block.number,
-          hash: block.hash,
-          timestamp: block.timestamp,
-        })),
-      );
+      results.push(...blocks.filter((block): block is BlockSummary => block !== null));
     }
 
     return results;
@@ -106,17 +90,30 @@ export class RpcClient {
 
   /**
    * Fetches single block metadata.
+   * Returns null for null rounds (e.g., Filecoin epochs with no block).
    */
-  async getBlock(blockNumber: bigint): Promise<BlockSummary> {
-    const block = await this._withRetry(
-      () =>
-        this._client.getBlock({
-          blockNumber,
-          includeTransactions: false,
-        }),
-      'getBlock',
-    );
-    return { number: block.number, hash: block.hash, timestamp: block.timestamp };
+  async getBlock(blockNumber: bigint): Promise<BlockSummary | null> {
+    try {
+      const block = await this._withRetry(
+        () =>
+          this._client.getBlock({
+            blockNumber,
+            includeTransactions: false,
+          }),
+        'getBlock',
+      );
+      return { number: block.number, hash: block.hash, timestamp: block.timestamp };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.toLowerCase().includes('null round')) {
+        logger.debug('null_round_skipped', {
+          chainId: this._chainId,
+          blockNumber: blockNumber.toString(),
+        });
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
