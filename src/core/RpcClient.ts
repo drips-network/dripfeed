@@ -104,8 +104,7 @@ export class RpcClient {
       );
       return { number: block.number, hash: block.hash, timestamp: block.timestamp };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.toLowerCase().includes('null round')) {
+      if (this._isNullRoundError(error)) {
         logger.debug('null_round_skipped', {
           chainId: this._chainId,
           blockNumber: blockNumber.toString(),
@@ -169,12 +168,22 @@ export class RpcClient {
         lastError = error as Error;
         const errorType = this._classifyError(lastError);
 
-        logger.error('rpc_error', {
-          chainId: this._chainId,
-          context,
-          error: lastError.message,
-          retryCount: attempt,
-        });
+        // Log null rounds at DEBUG, other errors at ERROR.
+        if (this._isNullRoundError(lastError)) {
+          logger.debug('rpc_null_round', {
+            chainId: this._chainId,
+            context,
+            error: lastError.message,
+            retryCount: attempt,
+          });
+        } else {
+          logger.error('rpc_error', {
+            chainId: this._chainId,
+            context,
+            error: lastError.message,
+            retryCount: attempt,
+          });
+        }
 
         if (errorType === 'permanent') {
           throw new Error(`Chain ${this._chainId}: ${context} failed: ${lastError.message}`);
@@ -236,12 +245,20 @@ export class RpcClient {
       message.includes('not found') ||
       message.includes('unsupported') ||
       message.includes('bad request') ||
-      message.includes('null round')
+      this._isNullRoundError(error)
     ) {
       return 'permanent';
     }
 
     // Transient errors (network, timeout, rate limit, etc.).
     return 'transient';
+  }
+
+  /**
+   * Checks if error is a null round error (Filecoin-specific).
+   */
+  private _isNullRoundError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes('null round');
   }
 }
