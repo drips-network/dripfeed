@@ -230,12 +230,13 @@ export class RpcClient {
       }
     }
 
-    // Permanent errors (invalid params, not found, etc.).
+    // Permanent errors (invalid params, not found, null rounds, etc.).
     if (
       message.includes('invalid') ||
       message.includes('not found') ||
       message.includes('unsupported') ||
-      message.includes('bad request')
+      message.includes('bad request') ||
+      message.includes('null round')
     ) {
       return 'permanent';
     }
