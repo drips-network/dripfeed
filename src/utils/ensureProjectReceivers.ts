@@ -26,11 +26,11 @@ export async function ensureProjectReceivers(
   eventPointer: EventPointer,
 ): Promise<void> {
   await Promise.all(
-    receivers.map((receiver) => {
+    receivers.map(async (receiver) => {
       const { forge, ownerName, repoName } = receiver.source;
       const name = `${ownerName}/${repoName}`;
 
-      return projectsRepo.ensureProjectExists(
+      await projectsRepo.ensureUnclaimedProject(
         {
           account_id: receiver.accountId,
           forge,

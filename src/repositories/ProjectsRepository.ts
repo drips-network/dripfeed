@@ -5,7 +5,6 @@ import type { z } from 'zod';
 import { projects } from '../db/schema.js';
 import { upsertPartial, update } from '../db/replayableOps.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
-import { logger } from '../logger.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
@@ -35,6 +34,11 @@ const updateProjectDataInputSchema = projectSchema
 
 export type UpdateProjectData = z.infer<typeof updateProjectDataInputSchema>;
 
+export type EnsureProjectResult = {
+  project: Project;
+  created: boolean;
+};
+
 const IMMUTABLE_FIELDS: Set<keyof Project> = new Set([
   'account_id',
   'created_at',
@@ -48,89 +52,36 @@ export class ProjectsRepository {
   constructor(
     private readonly client: PoolClient,
     private readonly schema: string,
-    private readonly chainId: string,
   ) {
     validateSchemaName(schema);
   }
 
   /**
-   * Ensures a project exists in an **unclaimed baseline state**.
+   * Ensures a project exists.
    *
-   * If no project exists for the given account ID, one is created.
-   * If a project already exists, it is reset to the unclaimed baseline.
+   * If no project exists, creates one in unclaimed state.
+   * If a project already exists, returns it unchanged (insertIgnore semantics).
    *
-   * Replayable: running with the same inputs yields the same persisted
-   * state, excluding DB-managed side effects (e.g. timestamps or triggers).
+   * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
+   *
+   * Replayable: running with the same inputs yields the same persisted state.
+   *
    * @param data.account_id - Project account ID.
    * @param data.forge - Source forge.
    * @param data.name - Project name (`<owner>/<repo>`).
+   * @param data.url - Project URL.
    * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted project row.
+   * @returns The persisted project row and whether it was created.
    */
   async ensureUnclaimedProject(
     data: EnsureUnclaimedProject,
     eventPointer: EventPointer,
-  ): Promise<Project> {
+  ): Promise<EnsureProjectResult> {
     ensureUnclaimedProjectInputSchema.parse(data);
 
     const existing = await this.findById(data.account_id);
-
-    // Security check: prevent resetting claimed projects with new events.
-    // Only allow reset if this is a replay event (older than existing state).
-    if (existing && existing.owner_address !== null) {
-      // If existing event pointer fields are null, we cannot determine replay status.
-      // Proceed with reset (defensive: assume valid).
-      if (
-        existing.last_event_block === null ||
-        existing.last_event_tx_index === null ||
-        existing.last_event_log_index === null
-      ) {
-        logger.warn('owner_update_requested_claimed_project_missing_event_pointer', {
-          account_id: data.account_id,
-          existing_owner: existing.owner_address,
-        });
-      } else {
-        const existingPointer: EventPointer = {
-          last_event_block: existing.last_event_block,
-          last_event_tx_index: existing.last_event_tx_index,
-          last_event_log_index: existing.last_event_log_index,
-        };
-
-        const sourceEventExists = await this._eventPointerExists(existingPointer);
-
-        const isReplay =
-          eventPointer.last_event_block < existing.last_event_block ||
-          (eventPointer.last_event_block === existing.last_event_block &&
-            eventPointer.last_event_tx_index < existing.last_event_tx_index) ||
-          (eventPointer.last_event_block === existing.last_event_block &&
-            eventPointer.last_event_tx_index === existing.last_event_tx_index &&
-            eventPointer.last_event_log_index <= existing.last_event_log_index);
-
-        if (!isReplay && sourceEventExists) {
-          // This is a new event attempting to reset a claimed project (potential attack).
-          // Skip reset and return existing project unchanged.
-          logger.warn('owner_update_requested_ignored_claimed_project', {
-            account_id: data.account_id,
-            existing_owner: existing.owner_address,
-            existing_event_block: existing.last_event_block.toString(),
-            request_event_block: eventPointer.last_event_block.toString(),
-          });
-          return existing;
-        }
-
-        if (!sourceEventExists) {
-          logger.warn('owner_update_requested_missing_source_event', {
-            account_id: data.account_id,
-            existing_owner: existing.owner_address,
-            expected_block: existing.last_event_block.toString(),
-            replay_block: eventPointer.last_event_block.toString(),
-            message:
-              'Stored event pointer no longer exists in _events; treating incoming event as replay.',
-          });
-        }
-
-        // This is a replay event (reorg recovery). Proceed with reset.
-      }
+    if (existing) {
+      return { project: existing, created: false };
     }
 
     const upsertData = {
@@ -181,39 +132,7 @@ export class ProjectsRepository {
     });
 
     const project = projectSchema.parse(result.rows[0]);
-    return project;
-  }
-
-  /**
-   * Ensures a project exists without modifying it if already present.
-   *
-   * If no project exists, creates one in unclaimed state.
-   * If a project already exists, returns it unchanged.
-   *
-   * Use this when you need to reference a project in splits/lists but don't want
-   * to reset already-claimed projects back to unclaimed.
-   *
-   * Replayable: running with the same inputs yields the same persisted state.
-   *
-   * @param data.account_id - Project account ID.
-   * @param data.forge - Source forge.
-   * @param data.name - Project name (`<owner>/<repo>`).
-   * @param data.url - Project URL.
-   * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted project row (existing or newly created).
-   */
-  async ensureProjectExists(
-    data: EnsureUnclaimedProject,
-    eventPointer: EventPointer,
-  ): Promise<Project> {
-    ensureUnclaimedProjectInputSchema.parse(data);
-
-    const existing = await this.findById(data.account_id);
-    if (existing) {
-      return existing;
-    }
-
-    return this.ensureUnclaimedProject(data, eventPointer);
+    return { project, created: true };
   }
 
   /**
@@ -342,27 +261,5 @@ export class ProjectsRepository {
 
     const project = projectSchema.parse(result.rows[0]);
     return { success: true, data: project };
-  }
-
-  private async _eventPointerExists(pointer: EventPointer): Promise<boolean> {
-    const result = await this.client.query(
-      `
-      SELECT 1
-      FROM ${this.schema}._events
-      WHERE chain_id = $1
-        AND block_number = $2
-        AND tx_index = $3
-        AND log_index = $4
-      LIMIT 1
-    `,
-      [
-        this.chainId,
-        pointer.last_event_block.toString(),
-        pointer.last_event_tx_index,
-        pointer.last_event_log_index,
-      ],
-    );
-
-    return (result.rowCount ?? 0) > 0;
   }
 }

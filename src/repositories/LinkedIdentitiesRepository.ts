@@ -5,7 +5,6 @@ import type { z } from 'zod';
 import { linkedIdentities } from '../db/schema.js';
 import { upsertPartial, update } from '../db/replayableOps.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
-import { logger } from '../logger.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
@@ -29,6 +28,11 @@ const updateLinkedIdentityDataInputSchema = linkedIdentitySchema
   .required({ account_id: true });
 
 export type UpdateLinkedIdentityData = z.infer<typeof updateLinkedIdentityDataInputSchema>;
+
+export type EnsureLinkedIdentityResult = {
+  linkedIdentity: LinkedIdentity;
+  created: boolean;
+};
 
 const IMMUTABLE_FIELDS: Set<keyof LinkedIdentity> = new Set([
   'account_id',
@@ -63,60 +67,26 @@ export class LinkedIdentitiesRepository {
   }
 
   /**
-   * Ensures a linked identity exists in an **unclaimed baseline state**.
+   * Ensures a linked identity exists.
    *
-   * If no linked identity exists for the given account ID, one is created.
-   * If a linked identity already exists, it is reset to the unclaimed baseline.
+   * If no linked identity exists, creates one in unclaimed state.
+   * If a linked identity already exists, returns it unchanged (insertIgnore semantics).
+   *
+   * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
    *
    * @param data - Linked identity data.
    * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted linked identity row.
+   * @returns The persisted linked identity row and whether it was created.
    */
   async ensureUnclaimedLinkedIdentity(
     data: EnsureUnclaimedLinkedIdentity,
     eventPointer: EventPointer,
-  ): Promise<LinkedIdentity> {
+  ): Promise<EnsureLinkedIdentityResult> {
     ensureUnclaimedLinkedIdentityInputSchema.parse(data);
 
     const existing = await this.getLinkedIdentity(data.account_id);
-
-    // Security check: prevent resetting claimed linked identities with new events.
-    // Only allow reset if this is a replay event (older than existing state).
-    if (existing && existing.owner_address !== null) {
-      // If existing event pointer fields are null, we cannot determine replay status.
-      // Proceed with reset (defensive: assume valid).
-      if (
-        existing.last_event_block === null ||
-        existing.last_event_tx_index === null ||
-        existing.last_event_log_index === null
-      ) {
-        logger.warn('owner_update_requested_claimed_linked_identity_missing_event_pointer', {
-          account_id: data.account_id,
-          existing_owner: existing.owner_address,
-        });
-      } else {
-        const isReplay =
-          eventPointer.last_event_block < existing.last_event_block ||
-          (eventPointer.last_event_block === existing.last_event_block &&
-            eventPointer.last_event_tx_index < existing.last_event_tx_index) ||
-          (eventPointer.last_event_block === existing.last_event_block &&
-            eventPointer.last_event_tx_index === existing.last_event_tx_index &&
-            eventPointer.last_event_log_index <= existing.last_event_log_index);
-
-        if (!isReplay) {
-          // This is a new event attempting to reset a claimed linked identity (potential attack).
-          // Skip reset and return existing linked identity unchanged.
-          logger.warn('owner_update_requested_ignored_claimed_linked_identity', {
-            account_id: data.account_id,
-            existing_owner: existing.owner_address,
-            existing_event_block: existing.last_event_block.toString(),
-            request_event_block: eventPointer.last_event_block.toString(),
-          });
-          return existing;
-        }
-
-        // This is a replay event (reorg recovery). Proceed with reset.
-      }
+    if (existing) {
+      return { linkedIdentity: existing, created: false };
     }
 
     const upsertData = {
@@ -160,7 +130,7 @@ export class LinkedIdentitiesRepository {
     });
 
     const linkedIdentity = linkedIdentitySchema.parse(result.rows[0]);
-    return linkedIdentity;
+    return { linkedIdentity, created: true };
   }
 
   async updateLinkedIdentity(

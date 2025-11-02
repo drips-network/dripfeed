@@ -18,14 +18,13 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
 ) => {
   const { accountId, forge, name } = event.args;
   const { projectsRepo, linkedIdentitiesRepo } = ctx;
-
   const eventPointer = toEventPointer(event);
   const accountIdStr = accountId.toString();
   const nameStr = fromHex(name, 'string');
 
   if (isProject(accountIdStr)) {
     const forgeValue = mapForge(Number(forge));
-    const project = await projectsRepo.ensureUnclaimedProject(
+    const { project, created } = await projectsRepo.ensureUnclaimedProject(
       {
         account_id: accountIdStr,
         forge: forgeValue,
@@ -35,9 +34,13 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
       eventPointer,
     );
 
-    logger.info('project_created_or_reset', { project });
+    if (created) {
+      logger.info('owner_update_requested_project_created', { project });
+    } else {
+      logger.info('owner_update_requested_project_exists', { project });
+    }
   } else if (isOrcidAccount(accountIdStr)) {
-    const orcid = await linkedIdentitiesRepo.ensureUnclaimedLinkedIdentity(
+    const { linkedIdentity, created } = await linkedIdentitiesRepo.ensureUnclaimedLinkedIdentity(
       {
         account_id: accountIdStr,
         identity_type: 'orcid',
@@ -45,7 +48,11 @@ export const ownerUpdateRequestedHandler: EventHandler<OwnerUpdateRequested> = a
       eventPointer,
     );
 
-    logger.info('orcid_created_or_reset', { orcid });
+    if (created) {
+      logger.info('owner_update_requested_linked_identity_created', { linkedIdentity });
+    } else {
+      logger.info('owner_update_requested_linked_identity_exists', { linkedIdentity });
+    }
   } else {
     logger.warn('owner_update_requested_unsupported_account', { accountId: accountIdStr });
   }
