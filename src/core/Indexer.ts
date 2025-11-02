@@ -46,6 +46,7 @@ export class Indexer {
   private _stoppedPromise: Promise<void> | null = null;
   private _resolveStoppedPromise: (() => void) | null = null;
   private _pendingReorgValidation: bigint | null = null;
+  private _pendingReorgValidationTarget: bigint | null = null;
 
   constructor(
     config: RuntimeConfig,
@@ -142,6 +143,7 @@ export class Indexer {
 
                 // Schedule orphan validation after next successful processing cycle.
                 this._pendingReorgValidation = reorgBlock;
+                this._pendingReorgValidationTarget = null;
 
                 reorgSpan.setStatus({ code: SpanStatusCode.OK });
                 span.setAttribute('iteration.result', 'reorg_recovered');
@@ -172,15 +174,20 @@ export class Indexer {
           const fetchResult = await this._fetcher.fetchAndStore();
           await this._processor.processBatch();
 
-          // Validate orphan cleanup after reorg recovery once we have caught up to the safe head.
-          if (
-            fetchResult !== null &&
-            fetchResult.safeBlock > 0n &&
-            fetchResult.toBlock >= fetchResult.safeBlock &&
-            this._pendingReorgValidation !== null
-          ) {
-            await this._reorgDetector.validateCleanup(this._pendingReorgValidation);
-            this._pendingReorgValidation = null;
+          // Validate orphan cleanup after reorg recovery once we have replayed back to the first safe head after the reorg.
+          if (this._pendingReorgValidation !== null && fetchResult !== null) {
+            if (this._pendingReorgValidationTarget === null) {
+              this._pendingReorgValidationTarget = fetchResult.safeBlock;
+            }
+
+            if (
+              this._pendingReorgValidationTarget !== null &&
+              fetchResult.toBlock >= this._pendingReorgValidationTarget
+            ) {
+              await this._reorgDetector.validateCleanup(this._pendingReorgValidation);
+              this._pendingReorgValidation = null;
+              this._pendingReorgValidationTarget = null;
+            }
           }
 
           consecutiveErrors = 0;
