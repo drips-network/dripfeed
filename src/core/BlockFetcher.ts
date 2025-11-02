@@ -26,6 +26,7 @@ const HISTORIC_BLOCK_CHUNK_SIZE = 10;
 type FetchResult = {
   fromBlock: bigint;
   toBlock: bigint;
+  safeBlock: bigint;
   eventCount: number;
   logsLength: number;
 };
@@ -364,6 +365,7 @@ export class BlockFetcher {
       return {
         fromBlock: totalEvents.fromBlock,
         toBlock: totalEvents.toBlock,
+        safeBlock,
         eventCount: totalEvents.eventCount,
         logsLength: totalEvents.logsLength,
       };

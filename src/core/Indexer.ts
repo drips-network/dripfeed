@@ -172,8 +172,13 @@ export class Indexer {
           const fetchResult = await this._fetcher.fetchAndStore();
           await this._processor.processBatch();
 
-          // Validate orphan cleanup after reorg recovery once we are synced to the safe head.
-          if (fetchResult === null && this._pendingReorgValidation !== null) {
+          // Validate orphan cleanup after reorg recovery once we have caught up to the safe head.
+          if (
+            fetchResult !== null &&
+            fetchResult.safeBlock > 0n &&
+            fetchResult.toBlock >= fetchResult.safeBlock &&
+            this._pendingReorgValidation !== null
+          ) {
             await this._reorgDetector.validateCleanup(this._pendingReorgValidation);
             this._pendingReorgValidation = null;
           }
