@@ -45,6 +45,7 @@ export class Indexer {
   private _shouldStop = false;
   private _stoppedPromise: Promise<void> | null = null;
   private _resolveStoppedPromise: (() => void) | null = null;
+  private _pendingReorgValidation: bigint | null = null;
 
   constructor(
     config: RuntimeConfig,
@@ -139,6 +140,9 @@ export class Indexer {
                   message: 'Reorg recovery completed. Resuming indexing...',
                 });
 
+                // Schedule orphan validation after next successful processing cycle.
+                this._pendingReorgValidation = reorgBlock;
+
                 reorgSpan.setStatus({ code: SpanStatusCode.OK });
                 span.setAttribute('iteration.result', 'reorg_recovered');
               } else {
@@ -167,6 +171,12 @@ export class Indexer {
 
           const fetchResult = await this._fetcher.fetchAndStore();
           await this._processor.processBatch();
+
+          // Validate orphan cleanup after reorg recovery once we are synced to the safe head.
+          if (fetchResult === null && this._pendingReorgValidation !== null) {
+            await this._reorgDetector.validateCleanup(this._pendingReorgValidation);
+            this._pendingReorgValidation = null;
+          }
 
           consecutiveErrors = 0;
 

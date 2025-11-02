@@ -289,7 +289,7 @@ async function rollback(options: RollbackOptions): Promise<void> {
     console.log('  1. Verify cursor position in database');
     console.log('  2. Run orphan inspection script to check for orphaned domain entities:');
     console.log(
-      `     ${chalk.blue(`npm run inspect:orphans -- --db-url "${options.dbUrl}" --schema ${options.schema} --network ${options.network} --block ${block}`)}`,
+      `     ${chalk.blue(`npm run inspect:orphans -- --db-url "${options.dbUrl}" --schema ${options.schema} --network ${options.network} --block ${block} --rpc-url "${options.rpcUrl}"`)}`,
     );
     console.log('  3. Restart the indexer to resume from the rolled-back cursor position');
     console.log();

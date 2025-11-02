@@ -386,4 +386,207 @@ export class ReorgDetector {
       }
     }
   }
+
+  /**
+   * Validates that reorg cleanup was successful by checking for orphaned entities.
+   * Should be called after event re-processing completes to avoid false positives.
+   *
+   * Orphans indicate domain entities that still reference deleted events,
+   * which may signal incomplete cleanup or processing errors.
+   */
+  async validateCleanup(reorgBlock: bigint): Promise<void> {
+    logger.info('reorg_orphan_validation_started', {
+      schema: this._schema,
+      chain: this._chainId,
+      reorgBlock: reorgBlock.toString(),
+      message: 'Checking for orphaned entities after reorg recovery...',
+    });
+
+    try {
+      const orphans = await this.detectOrphans(reorgBlock);
+
+      if (orphans.length === 0) {
+        logger.info('reorg_orphan_validation_success', {
+          schema: this._schema,
+          chain: this._chainId,
+          reorgBlock: reorgBlock.toString(),
+          message: 'No orphaned entities detected. Reorg cleanup successful.',
+        });
+        return;
+      }
+
+      // Group orphans by table.
+      const orphansByTable = new Map<string, number>();
+      for (const orphan of orphans) {
+        orphansByTable.set(orphan.tableName, (orphansByTable.get(orphan.tableName) || 0) + 1);
+      }
+
+      const tablesSummary = Array.from(orphansByTable.entries())
+        .map(([table, count]) => `${table}: ${count}`)
+        .join(', ');
+
+      logger.error('reorg_orphan_validation_failed', {
+        schema: this._schema,
+        chain: this._chainId,
+        reorgBlock: reorgBlock.toString(),
+        orphanCount: orphans.length,
+        affectedTables: Array.from(orphansByTable.keys()),
+        summary: tablesSummary,
+        message: `Found ${orphans.length} orphaned entities after reorg recovery. This may indicate incomplete cleanup or processing errors.`,
+        sampleOrphans: orphans.slice(0, 10).map((o) => ({
+          table: o.tableName,
+          pk: o.primaryKey,
+          block: o.lastEventBlock,
+        })),
+      });
+    } catch (error) {
+      logger.error('reorg_orphan_validation_error', {
+        schema: this._schema,
+        chain: this._chainId,
+        reorgBlock: reorgBlock.toString(),
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to validate orphan cleanup after reorg',
+      });
+    }
+  }
+
+  /**
+   * Discovers domain entity tables from database schema.
+   * Domain tables are event-driven entities with event pointer columns.
+   */
+  async discoverDomainTables(): Promise<
+    Array<{ name: string; pkColumn: string; hasBlockNumber: boolean }>
+  > {
+    const result = await this._pool.query<{
+      table_name: string;
+      pk_column: string;
+      has_block_number: boolean;
+    }>(
+      `
+      SELECT DISTINCT
+        t.table_name,
+        (
+          SELECT c.column_name
+          FROM information_schema.table_constraints tc
+          INNER JOIN information_schema.constraint_column_usage c
+            ON tc.constraint_name = c.constraint_name
+            AND tc.table_schema = c.table_schema
+          WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_schema = t.table_schema
+            AND tc.table_name = t.table_name
+          LIMIT 1
+        ) as pk_column,
+        EXISTS(
+          SELECT 1
+          FROM information_schema.columns bc
+          WHERE bc.table_schema = t.table_schema
+            AND bc.table_name = t.table_name
+            AND bc.column_name = 'block_number'
+        ) as has_block_number
+      FROM information_schema.tables t
+      INNER JOIN information_schema.columns c
+        ON t.table_schema = c.table_schema
+        AND t.table_name = c.table_name
+        AND c.column_name = 'created_at'
+      INNER JOIN information_schema.columns ep
+        ON t.table_schema = ep.table_schema
+        AND t.table_name = ep.table_name
+        AND ep.column_name = 'last_event_block'
+      WHERE t.table_schema = $1
+        AND t.table_type = 'BASE TABLE'
+        AND (
+          t.table_name NOT LIKE '\\_%'
+          OR t.table_name = '_pending_nft_transfers'
+        )
+        AND NOT (
+          t.table_name LIKE '%\\_events'
+          AND t.table_name != '_pending_nft_transfers'
+        )
+      ORDER BY t.table_name
+      `,
+      [this._schema],
+    );
+
+    return result.rows.map((row) => ({
+      name: row.table_name,
+      pkColumn: row.pk_column,
+      hasBlockNumber: row.has_block_number,
+    }));
+  }
+
+  /**
+   * Detects orphaned domain entities after a reorg.
+   * Orphans are entities whose event pointers don't resolve to existing events.
+   *
+   * Scoped to specific block range to avoid full table scans.
+   */
+  async detectOrphans(
+    fromBlock: bigint,
+  ): Promise<Array<{ tableName: string; primaryKey: string; lastEventBlock: string }>> {
+    const domainTables = await this.discoverDomainTables();
+
+    if (domainTables.length === 0) {
+      logger.debug('orphan_check_no_tables', {
+        schema: this._schema,
+        chain: this._chainId,
+        message: 'No domain tables found to check for orphans',
+      });
+      return [];
+    }
+
+    const orphans: Array<{ tableName: string; primaryKey: string; lastEventBlock: string }> = [];
+
+    for (const table of domainTables) {
+      let validatedTable: string;
+      let validatedPk: string;
+      try {
+        validatedTable = validateIdentifier(table.name);
+        validatedPk = validateIdentifier(table.pkColumn);
+      } catch (error) {
+        logger.warn('orphan_check_identifier_skipped', {
+          schema: this._schema,
+          chain: this._chainId,
+          table: table.name,
+          primaryKey: table.pkColumn,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+
+      // Check for records where event pointer doesn't resolve to existing event.
+      // Scoped to records with last_event_block >= fromBlock.
+      const query = `
+        SELECT
+          t.${validatedPk} as primary_key,
+          t.last_event_block
+        FROM ${this._schema}.${validatedTable} t
+        LEFT JOIN ${this._schema}._events e
+          ON e.chain_id = $1
+          AND e.block_number = t.last_event_block
+          AND e.tx_index = t.last_event_tx_index
+          AND e.log_index = t.last_event_log_index
+        WHERE
+          t.last_event_block IS NOT NULL
+          AND t.last_event_block >= $2
+          AND e.id IS NULL
+        ORDER BY t.last_event_block DESC, t.${validatedPk} DESC
+        LIMIT 100
+      `;
+
+      const result = await this._pool.query<{
+        primary_key: string;
+        last_event_block: string;
+      }>(query, [this._chainId, fromBlock.toString()]);
+
+      for (const row of result.rows) {
+        orphans.push({
+          tableName: table.name,
+          primaryKey: row.primary_key,
+          lastEventBlock: row.last_event_block,
+        });
+      }
+    }
+
+    return orphans;
+  }
 }
