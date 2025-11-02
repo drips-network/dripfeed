@@ -46,6 +46,8 @@ export const linkedIdentityTypeEnum = pgEnum('linked_identity_types', ['orcid'])
 export const cursor = pgTable('_cursor', {
   chain_id: text('chain_id').primaryKey(),
   fetched_to_block: bigint('fetched_to_block', { mode: 'bigint' }).notNull(),
+  pending_reorg_validation_from_block: bigint('pending_reorg_validation_from_block', { mode: 'bigint' }),
+  pending_reorg_validation_target_block: bigint('pending_reorg_validation_target_block', { mode: 'bigint' }),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true })
     .notNull()

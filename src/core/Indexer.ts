@@ -177,6 +177,10 @@ export class Indexer {
           // Validate orphan cleanup after reorg recovery once we have replayed back to the first safe head after the reorg.
           if (this._pendingReorgValidation !== null && fetchResult !== null) {
             if (this._pendingReorgValidationTarget === null) {
+              await this._persistPendingReorgState(
+                this._pendingReorgValidation,
+                fetchResult.safeBlock,
+              );
               this._pendingReorgValidationTarget = fetchResult.safeBlock;
             }
 
@@ -185,6 +189,7 @@ export class Indexer {
               fetchResult.toBlock >= this._pendingReorgValidationTarget
             ) {
               await this._reorgDetector.validateCleanup(this._pendingReorgValidation);
+              await this._persistPendingReorgState(null, null);
               this._pendingReorgValidation = null;
               this._pendingReorgValidationTarget = null;
             }
@@ -255,6 +260,28 @@ export class Indexer {
     await this._stoppedPromise;
   }
 
+  private async _persistPendingReorgState(
+    fromBlock: bigint | null,
+    targetBlock: bigint | null,
+  ): Promise<void> {
+    const client = await this._pool.connect();
+    try {
+      await this._cursorRepo.setPendingReorgValidation(client, fromBlock, targetBlock);
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      logger.error('reorg_state_persistence_failed', {
+        schema: this._schema,
+        chain: this._chainId,
+        fromBlock: fromBlock?.toString() ?? null,
+        targetBlock: targetBlock?.toString() ?? null,
+        error: normalizedError.message,
+      });
+      throw normalizedError;
+    } finally {
+      client.release();
+    }
+  }
+
   /**
    * Initializes and validates the cursor in a transaction.
    */
@@ -272,6 +299,9 @@ export class Indexer {
       if (!cursor) {
         throw new Error(`Cursor not initialized for chain ${this._chainId}`);
       }
+
+      this._pendingReorgValidation = cursor.pendingReorgValidationFromBlock;
+      this._pendingReorgValidationTarget = cursor.pendingReorgValidationTargetBlock;
 
       await client.query('COMMIT');
     } catch (error) {

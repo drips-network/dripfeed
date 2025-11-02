@@ -283,6 +283,8 @@ export class ReorgDetector {
         newCursor: targetCursor.toString(),
       });
 
+      await this._cursorRepo.setPendingReorgValidation(client, reorgBlock, null);
+
       await client.query('COMMIT');
 
       logger.info('reorg_recovery_completed', {

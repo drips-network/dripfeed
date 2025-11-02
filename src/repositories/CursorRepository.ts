@@ -9,12 +9,16 @@ export type Cursor = {
   chainId: string;
   /** Latest block number fetched and scanned for events. */
   fetchedToBlock: bigint;
+  pendingReorgValidationFromBlock: bigint | null;
+  pendingReorgValidationTargetBlock: bigint | null;
   updatedAt: Date;
 };
 
 type CursorRow = {
   chain_id: string;
   fetched_to_block: string | number | bigint;
+  pending_reorg_validation_from_block: string | number | bigint | null;
+  pending_reorg_validation_target_block: string | number | bigint | null;
   updated_at: Date;
 };
 
@@ -127,12 +131,45 @@ export class CursorRepository {
   }
 
   /**
+   * Persists pending reorg validation metadata.
+   *
+   * Callers are responsible for transaction boundaries; when invoked
+   * inside an existing transaction the update participates in that unit of work.
+   */
+  async setPendingReorgValidation(
+    client: PoolClient,
+    fromBlock: bigint | null,
+    targetBlock: bigint | null,
+  ): Promise<void> {
+    await client.query(
+      `
+      UPDATE ${this._schema}._cursor
+      SET
+        pending_reorg_validation_from_block = $2,
+        pending_reorg_validation_target_block = $3,
+        updated_at = NOW()
+      WHERE chain_id = $1
+    `,
+      [
+        this._chainId,
+        fromBlock !== null ? fromBlock.toString() : null,
+        targetBlock !== null ? targetBlock.toString() : null,
+      ],
+    );
+  }
+
+  /**
    * Converts a database row to a Cursor object.
    */
   private _rowToCursor(row: CursorRow): Cursor {
+    const fromBlock = row.pending_reorg_validation_from_block;
+    const targetBlock = row.pending_reorg_validation_target_block;
+
     return {
       chainId: row.chain_id,
       fetchedToBlock: BigInt(row.fetched_to_block),
+      pendingReorgValidationFromBlock: fromBlock != null ? BigInt(fromBlock) : null,
+      pendingReorgValidationTargetBlock: targetBlock != null ? BigInt(targetBlock) : null,
       updatedAt: row.updated_at,
     };
   }
