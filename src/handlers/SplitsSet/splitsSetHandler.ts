@@ -1,4 +1,5 @@
 import { type DecodeEventLogReturnType } from 'viem';
+import { createInsertSchema } from 'drizzle-zod';
 
 import type { DripsAbi } from '../../chains/abis/abiTypes.js';
 import { logger } from '../../logger.js';
@@ -9,8 +10,15 @@ import { toEventPointer } from '../../repositories/types.js';
 import { unreachable } from '../../utils/unreachable.js';
 import type { EventHandler, HandlerEvent } from '../EventHandler.js';
 import { validateSplits } from '../../utils/validateSplits.js';
+import { upsert } from '../../db/db.js';
+import { splitsSetEvents } from '../../db/schema.js';
 
 import { isSplittingToOwnerOnly } from './isSplittingToOwnerOnly.js';
+
+const splitsSetEventSchema = createInsertSchema(splitsSetEvents).omit({
+  created_at: true,
+  updated_at: true,
+});
 
 type SplitsSetEvent = HandlerEvent & {
   args: DecodeEventLogReturnType<DripsAbi, 'SplitsSet'>['args'];
@@ -19,23 +27,31 @@ type SplitsSetEvent = HandlerEvent & {
 export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx) => {
   const { accountId, receiversHash: splitsHashFromEvent } = event.args;
   const {
+    client,
+    schema,
     projectsRepo,
     linkedIdentitiesRepo,
     dripListsRepo,
     ecosystemsRepo,
     subListsRepo,
     splitsRepo,
-    splitsSetEventsRepo,
     contracts,
   } = ctx;
 
-  await splitsSetEventsRepo.upsert({
+  const splitsSetEvent = splitsSetEventSchema.parse({
     account_id: accountId.toString(),
     receivers_hash: splitsHashFromEvent,
     log_index: event.logIndex,
     block_number: event.blockNumber,
     block_timestamp: event.blockTimestamp,
     transaction_hash: event.txHash,
+  });
+
+  await upsert({
+    client,
+    table: `${schema}.splits_set_events`,
+    data: splitsSetEvent,
+    conflictColumns: ['transaction_hash', 'log_index'],
   });
 
   // "Unsafe" calls are acceptable here for "valid NOW" semantics:

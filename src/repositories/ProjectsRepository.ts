@@ -3,7 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { projects } from '../db/schema.js';
-import { upsertPartial, update } from '../db/replayableOps.js';
+import { upsertPartial, update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
@@ -60,7 +60,7 @@ export class ProjectsRepository {
    * Ensures a project exists.
    *
    * If no project exists, creates one in unclaimed state.
-   * If a project already exists, returns it unchanged (insertIgnore semantics).
+   * If a project already exists, returns it unchanged (upsert semantics).
    *
    * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
    *
@@ -250,7 +250,7 @@ export class ProjectsRepository {
             WHEN ${ownerNullCheck} AND ${hashNullCheck} THEN 'unclaimed'
             WHEN ${ownerCheck} AND ${hashNullCheck} THEN 'pending_metadata'
             ELSE 'unclaimed'
-          END)::${this.schema}.verification_status
+          END)::"${this.schema}".verification_status
         `.trim(),
       },
     });

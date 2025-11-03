@@ -112,4 +112,3 @@ export const registry: Record<string, EventHandler> = {
 
 - **Idempotency**: Where possible, design handlers to be idempotent so reprocessing the same event produces the same result. This is critical for reorg handling and replay scenarios.
 - Handlers receive a `HandlerContext` with access to repositories and services.
-- Use repository `upsert` or `update` methods to ensure replayability.

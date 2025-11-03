@@ -248,57 +248,13 @@ export class EventRepository {
       AND block_number = $2
       AND tx_index = $3
       AND log_index = $4
+      AND status = 'pending'
   `,
       [this._chainId, blockNumber.toString(), txIndex, logIndex, errorMessage],
     );
-    // Fail fast if another worker already moved the event.
     if (result.rowCount !== 1) {
-      throw new Error(
-        `Failed to mark event failed: ${this._chainId}:${blockNumber}:${txIndex}:${logIndex}`,
-      );
+      return;
     }
-  }
-
-  /**
-   * Checks if a block has any pending events.
-   */
-  async hasBlockPendingEvents(tx: PoolClient, blockNumber: bigint): Promise<boolean> {
-    const result = await tx.query(
-      `
-    SELECT EXISTS(
-      SELECT 1 FROM ${this._schema}._events
-      WHERE chain_id = $1
-        AND block_number = $2
-        AND status = 'pending'
-    ) AS has_pending
-  `,
-      [this._chainId, blockNumber.toString()],
-    );
-    return result.rows[0].has_pending;
-  }
-
-  /**
-   * Checks if a specific event exists in the database.
-   */
-  async hasEvent(
-    tx: PoolClient,
-    blockNumber: bigint,
-    txIndex: number,
-    logIndex: number,
-  ): Promise<boolean> {
-    const result = await tx.query(
-      `
-    SELECT EXISTS(
-      SELECT 1 FROM ${this._schema}._events
-      WHERE chain_id = $1
-        AND block_number = $2
-        AND tx_index = $3
-        AND log_index = $4
-    ) AS event_exists
-  `,
-      [this._chainId, blockNumber.toString(), txIndex, logIndex],
-    );
-    return result.rows[0].event_exists;
   }
 
   /**
@@ -325,20 +281,6 @@ export class EventRepository {
     await tx.query(
       `
     DELETE FROM ${this._schema}._events
-    WHERE chain_id = $1 AND block_number >= $2
-  `,
-      [this._chainId, fromBlock.toString()],
-    );
-  }
-
-  /**
-   * Resets all events from a specific block onwards to pending status.
-   */
-  async resetEventsFromBlock(tx: PoolClient, fromBlock: bigint): Promise<void> {
-    await tx.query(
-      `
-    UPDATE ${this._schema}._events
-    SET status = 'pending', error_message = NULL, processed_at = NULL, updated_at = NOW()
     WHERE chain_id = $1 AND block_number >= $2
   `,
       [this._chainId, fromBlock.toString()],

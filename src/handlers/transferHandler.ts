@@ -1,12 +1,20 @@
 import { zeroAddress, type DecodeEventLogReturnType } from 'viem';
+import { createInsertSchema } from 'drizzle-zod';
 
 import type { NftDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
 import type { UpdateDripListData } from '../repositories/DripListsRepository.js';
 import type { UpdateEcosystemMainAccountData } from '../repositories/EcosystemsRepository.js';
 import { toEventPointer } from '../repositories/types.js';
+import { upsert } from '../db/db.js';
+import { transferEvents } from '../db/schema.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
+
+const transferEventSchema = createInsertSchema(transferEvents).omit({
+  created_at: true,
+  updated_at: true,
+});
 
 type TransferEvent = HandlerEvent & {
   args: DecodeEventLogReturnType<NftDriverAbi, 'Transfer'>['args'];
@@ -15,16 +23,17 @@ type TransferEvent = HandlerEvent & {
 export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) => {
   const { from, to, tokenId } = event.args;
   const {
+    client,
+    schema,
     dripListsRepo,
     ecosystemsRepo,
     pendingNftTransfersRepo,
-    transferEventsRepo,
     contracts,
     visibilityThresholdBlockNumber,
     cacheInvalidationService,
   } = ctx;
 
-  await transferEventsRepo.upsert({
+  const transferEvent = transferEventSchema.parse({
     from,
     to,
     token_id: tokenId.toString(),
@@ -32,6 +41,13 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
     block_number: event.blockNumber,
     block_timestamp: event.blockTimestamp,
     transaction_hash: event.txHash,
+  });
+
+  await upsert({
+    client,
+    table: `${schema}.transfer_events`,
+    data: transferEvent,
+    conflictColumns: ['transaction_hash', 'log_index'],
   });
 
   const eventPointer = toEventPointer(event);

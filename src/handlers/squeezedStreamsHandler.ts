@@ -1,9 +1,17 @@
 import type { DecodeEventLogReturnType } from 'viem';
+import { createInsertSchema } from 'drizzle-zod';
 
 import type { DripsAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
+import { upsert } from '../db/db.js';
+import { squeezedStreamsEvents } from '../db/schema.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
+
+const squeezedStreamsEventSchema = createInsertSchema(squeezedStreamsEvents).omit({
+  created_at: true,
+  updated_at: true,
+});
 
 type SqueezedStreamsEvent = HandlerEvent & {
   args: DecodeEventLogReturnType<DripsAbi, 'SqueezedStreams'>['args'];
@@ -11,9 +19,9 @@ type SqueezedStreamsEvent = HandlerEvent & {
 
 export const squeezedStreamsHandler: EventHandler<SqueezedStreamsEvent> = async (event, ctx) => {
   const { accountId, erc20, senderId, amt, streamsHistoryHashes } = event.args;
-  const { squeezedStreamsEventsRepo } = ctx;
+  const { client, schema } = ctx;
 
-  await squeezedStreamsEventsRepo.upsert({
+  const squeezedStreamsEvent = squeezedStreamsEventSchema.parse({
     account_id: accountId.toString(),
     erc20: erc20.toLowerCase(),
     sender_id: senderId.toString(),
@@ -23,6 +31,13 @@ export const squeezedStreamsHandler: EventHandler<SqueezedStreamsEvent> = async 
     block_number: event.blockNumber,
     block_timestamp: event.blockTimestamp,
     transaction_hash: event.txHash,
+  });
+
+  await upsert({
+    client,
+    table: `${schema}.squeezed_streams_events`,
+    data: squeezedStreamsEvent,
+    conflictColumns: ['transaction_hash', 'log_index'],
   });
 
   logger.info('squeezed_streams_event_processed', {

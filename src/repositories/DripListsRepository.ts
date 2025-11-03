@@ -3,7 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { dripLists } from '../db/schema.js';
-import { upsertPartial, update } from '../db/replayableOps.js';
+import { update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
@@ -11,7 +11,7 @@ import type { UpdateResult, EventPointer } from './types.js';
 const dripListSchema = createSelectSchema(dripLists);
 export type DripList = z.infer<typeof dripListSchema>;
 
-const upsertDripListInputSchema = dripListSchema.pick({
+export const upsertDripListInputSchema = dripListSchema.pick({
   account_id: true,
   owner_address: true,
   owner_account_id: true,
@@ -66,61 +66,6 @@ export class DripListsRepository {
     }
 
     return dripListSchema.parse(result.rows[0]);
-  }
-
-  /**
-   * Ensures a drip list exists, creating it if necessary or updating if it exists.
-   *
-   * Replayable: running with the same inputs yields the same persisted state.
-   *
-   * @param data - Drip list data with required baseline fields.
-   * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted drip list row.
-   */
-  async upsertDripList(data: UpsertDripListData, eventPointer: EventPointer): Promise<DripList> {
-    upsertDripListInputSchema.parse(data);
-
-    const upsertData = {
-      account_id: data.account_id,
-      owner_address: data.owner_address,
-      owner_account_id: data.owner_account_id,
-      is_valid: data.is_valid,
-      is_visible: data.is_visible,
-      last_event_block: eventPointer.last_event_block,
-      last_event_tx_index: eventPointer.last_event_tx_index,
-      last_event_log_index: eventPointer.last_event_log_index,
-    };
-
-    const result = await upsertPartial<
-      DripList,
-      typeof upsertData,
-      'account_id',
-      | 'owner_address'
-      | 'owner_account_id'
-      | 'is_valid'
-      | 'is_visible'
-      | 'last_event_block'
-      | 'last_event_tx_index'
-      | 'last_event_log_index',
-      DripList
-    >({
-      client: this.client,
-      table: `${this.schema}.drip_lists`,
-      data: upsertData,
-      conflictColumns: ['account_id'],
-      updateColumns: [
-        'owner_address',
-        'owner_account_id',
-        'is_valid',
-        'is_visible',
-        'last_event_block',
-        'last_event_tx_index',
-        'last_event_log_index',
-      ],
-    });
-
-    const dripList = dripListSchema.parse(result.rows[0]);
-    return dripList;
   }
 
   /**

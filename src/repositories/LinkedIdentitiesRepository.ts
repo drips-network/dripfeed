@@ -3,7 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { linkedIdentities } from '../db/schema.js';
-import { upsertPartial, update } from '../db/replayableOps.js';
+import { upsertPartial, update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
@@ -70,7 +70,7 @@ export class LinkedIdentitiesRepository {
    * Ensures a linked identity exists.
    *
    * If no linked identity exists, creates one in unclaimed state.
-   * If a linked identity already exists, returns it unchanged (insertIgnore semantics).
+   * If a linked identity already exists, returns it unchanged (upsert semantics).
    *
    * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
    *

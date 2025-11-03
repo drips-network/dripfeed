@@ -1,4 +1,5 @@
 import { fromHex, type DecodeEventLogReturnType } from 'viem';
+import { createInsertSchema } from 'drizzle-zod';
 
 import { isProject, isOrcidAccount } from '../../utils/repoDriverAccountUtils.js';
 import { logger } from '../../logger.js';
@@ -8,11 +9,18 @@ import { isNftDriverId } from '../../utils/ntfDriverAccountIdUtils.js';
 import { isImmutableSplitsDriverId } from '../../utils/immutableSplitsDriverUtils.js';
 import { isAddressDriverId } from '../../utils/addressDriverAccountUtils.js';
 import { toEventPointer } from '../../repositories/types.js';
+import { upsert } from '../../db/db.js';
+import { accountMetadataEmittedEvents } from '../../db/schema.js';
 
 import { handleProjectMetadata } from './handleProjectMetadata.js';
 import { handleDripListMetadata } from './handleDripListMetadata.js';
 import { handleEcosystemMainAccountMetadata } from './handleEcosystemMainAccountMetadata.js';
 import { handleSubListMetadata } from './handleSubListMetadata.js';
+
+const accountMetadataEmittedEventSchema = createInsertSchema(accountMetadataEmittedEvents).omit({
+  created_at: true,
+  updated_at: true,
+});
 
 //  'ipfs' in hex, 32 bytes.
 const DRIPS_APP_USER_METADATA_KEY =
@@ -35,7 +43,7 @@ export const accountMetadataEmittedHandler: EventHandler<AccountMetadataEmittedE
 
   const eventPointer = toEventPointer(event);
 
-  await ctx.accountMetadataEmittedEventsRepo.upsert({
+  const accountMetadataEmittedEvent = accountMetadataEmittedEventSchema.parse({
     key,
     value,
     account_id: accountIdStr,
@@ -43,6 +51,13 @@ export const accountMetadataEmittedHandler: EventHandler<AccountMetadataEmittedE
     block_number: event.blockNumber,
     block_timestamp: event.blockTimestamp,
     transaction_hash: event.txHash,
+  });
+
+  await upsert({
+    client: ctx.client,
+    table: `${ctx.schema}.account_metadata_emitted_events`,
+    data: accountMetadataEmittedEvent,
+    conflictColumns: ['transaction_hash', 'log_index'],
   });
 
   if (key !== DRIPS_APP_USER_METADATA_KEY) {

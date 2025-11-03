@@ -1,18 +1,12 @@
+import type { PoolClient } from 'pg';
+
 import type { DripListsRepository } from '../repositories/DripListsRepository.js';
 import type { EcosystemsRepository } from '../repositories/EcosystemsRepository.js';
 import type { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import type { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
 import type { ProjectsRepository } from '../repositories/ProjectsRepository.js';
-import type { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import type { SplitsRepository } from '../repositories/SplitsRepository.js';
 import type { SubListsRepository } from '../repositories/SubListsRepository.js';
-import type { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
-import type { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
-import type { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
-import type { SplitsSetEventsRepository } from '../repositories/SplitsSetEventsRepository.js';
-import type { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
-import type { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
-import type { TransferEventsRepository } from '../repositories/TransferEventsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { Contracts } from '../services/Contracts.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -49,6 +43,8 @@ export type HandlerEvent = {
 };
 
 export type HandlerContext = {
+  readonly client: PoolClient;
+  readonly schema: string;
   readonly projectsRepo: ProjectsRepository;
   readonly linkedIdentitiesRepo: LinkedIdentitiesRepository;
   readonly splitsRepo: SplitsRepository;
@@ -56,14 +52,6 @@ export type HandlerContext = {
   readonly ecosystemsRepo: EcosystemsRepository;
   readonly subListsRepo: SubListsRepository;
   readonly pendingNftTransfersRepo: PendingNftTransfersRepository;
-  readonly givenEventsRepo: GivenEventsRepository;
-  readonly splitEventsRepo: SplitEventsRepository;
-  readonly squeezedStreamsEventsRepo: SqueezedStreamsEventsRepository;
-  readonly streamsSetEventsRepo: StreamsSetEventsRepository;
-  readonly splitsSetEventsRepo: SplitsSetEventsRepository;
-  readonly accountMetadataEmittedEventsRepo: AccountMetadataEmittedEventsRepository;
-  readonly streamReceiverSeenEventsRepo: StreamReceiverSeenEventsRepository;
-  readonly transferEventsRepo: TransferEventsRepository;
   readonly metadataService: MetadataService;
   readonly contracts: Contracts;
   readonly cacheInvalidationService: CacheInvalidationService;

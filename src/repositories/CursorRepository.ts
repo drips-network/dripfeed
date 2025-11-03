@@ -47,16 +47,6 @@ export class CursorRepository {
   }
 
   /**
-   * Retrieves the cursor within a transaction (without lock).
-   */
-  async getCursorInTransaction(tx: PoolClient): Promise<Cursor | null> {
-    const result = await tx.query(`SELECT * FROM ${this._schema}._cursor WHERE chain_id = $1`, [
-      this._chainId,
-    ]);
-    return result.rows[0] ? this._rowToCursor(result.rows[0]) : null;
-  }
-
-  /**
    * Retrieves the cursor with FOR UPDATE lock within a transaction.
    */
   async getCursorForUpdate(tx: PoolClient): Promise<Cursor | null> {

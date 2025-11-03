@@ -3,7 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { subLists } from '../db/schema.js';
-import { upsertPartial, update } from '../db/replayableOps.js';
+import { upsertPartial, update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';

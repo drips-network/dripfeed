@@ -9,16 +9,8 @@ import { EcosystemsRepository } from '../repositories/EcosystemsRepository.js';
 import { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
 import { ProjectsRepository } from '../repositories/ProjectsRepository.js';
-import { SplitEventsRepository } from '../repositories/SplitEventsRepository.js';
 import { SplitsRepository } from '../repositories/SplitsRepository.js';
 import { SubListsRepository } from '../repositories/SubListsRepository.js';
-import { GivenEventsRepository } from '../repositories/GivenEventsRepository.js';
-import { SqueezedStreamsEventsRepository } from '../repositories/SqueezedStreamsEventsRepository.js';
-import { StreamsSetEventsRepository } from '../repositories/StreamsSetEventsRepository.js';
-import { SplitsSetEventsRepository } from '../repositories/SplitsSetEventsRepository.js';
-import { AccountMetadataEmittedEventsRepository } from '../repositories/AccountMetadataEmittedEventsRepository.js';
-import { StreamReceiverSeenEventsRepository } from '../repositories/StreamReceiverSeenEventsRepository.js';
-import { TransferEventsRepository } from '../repositories/TransferEventsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -187,6 +179,8 @@ export class EventProcessor {
    */
   private _buildHandlerContext(client: PoolClient): HandlerContext {
     return {
+      client,
+      schema: this._schema,
       projectsRepo: new ProjectsRepository(client, this._schema),
       linkedIdentitiesRepo: new LinkedIdentitiesRepository(client, this._schema),
       splitsRepo: new SplitsRepository(client, this._schema),
@@ -194,17 +188,6 @@ export class EventProcessor {
       ecosystemsRepo: new EcosystemsRepository(client, this._schema),
       subListsRepo: new SubListsRepository(client, this._schema),
       pendingNftTransfersRepo: new PendingNftTransfersRepository(client, this._schema),
-      givenEventsRepo: new GivenEventsRepository(client, this._schema),
-      splitEventsRepo: new SplitEventsRepository(client, this._schema),
-      squeezedStreamsEventsRepo: new SqueezedStreamsEventsRepository(client, this._schema),
-      streamsSetEventsRepo: new StreamsSetEventsRepository(client, this._schema),
-      splitsSetEventsRepo: new SplitsSetEventsRepository(client, this._schema),
-      accountMetadataEmittedEventsRepo: new AccountMetadataEmittedEventsRepository(
-        client,
-        this._schema,
-      ),
-      streamReceiverSeenEventsRepo: new StreamReceiverSeenEventsRepository(client, this._schema),
-      transferEventsRepo: new TransferEventsRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,

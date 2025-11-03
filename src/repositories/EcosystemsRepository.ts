@@ -3,7 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { ecosystemMainAccounts } from '../db/schema.js';
-import { upsertPartial, update } from '../db/replayableOps.js';
+import { update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
@@ -11,7 +11,7 @@ import type { UpdateResult, EventPointer } from './types.js';
 const ecosystemMainAccountSchema = createSelectSchema(ecosystemMainAccounts);
 export type EcosystemMainAccount = z.infer<typeof ecosystemMainAccountSchema>;
 
-const upsertEcosystemMainAccountInputSchema = ecosystemMainAccountSchema.pick({
+export const upsertEcosystemMainAccountInputSchema = ecosystemMainAccountSchema.pick({
   account_id: true,
   owner_address: true,
   owner_account_id: true,
@@ -52,73 +52,6 @@ export class EcosystemsRepository {
     private readonly schema: string,
   ) {
     validateSchemaName(schema);
-  }
-
-  /**
-   * Ensures an ecosystem main account exists, creating it if necessary or updating if it exists.
-   *
-   * Replayable: running with the same inputs yields the same persisted state.
-   *
-   * @param data - Ecosystem main account data with required baseline fields.
-   * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted ecosystem main account row.
-   */
-  async upsertEcosystemMainAccount(
-    data: UpsertEcosystemMainAccountData,
-    eventPointer: EventPointer,
-  ): Promise<EcosystemMainAccount> {
-    upsertEcosystemMainAccountInputSchema.parse(data);
-
-    const upsertData = {
-      account_id: data.account_id,
-      owner_address: data.owner_address,
-      owner_account_id: data.owner_account_id,
-      is_valid: data.is_valid,
-      is_visible: data.is_visible,
-      last_processed_ipfs_hash: data.last_processed_ipfs_hash,
-      avatar: data.avatar,
-      color: data.color,
-      last_event_block: eventPointer.last_event_block,
-      last_event_tx_index: eventPointer.last_event_tx_index,
-      last_event_log_index: eventPointer.last_event_log_index,
-    };
-
-    const result = await upsertPartial<
-      EcosystemMainAccount,
-      typeof upsertData,
-      'account_id',
-      | 'owner_address'
-      | 'owner_account_id'
-      | 'is_valid'
-      | 'is_visible'
-      | 'last_processed_ipfs_hash'
-      | 'avatar'
-      | 'color'
-      | 'last_event_block'
-      | 'last_event_tx_index'
-      | 'last_event_log_index',
-      EcosystemMainAccount
-    >({
-      client: this.client,
-      table: `${this.schema}.ecosystem_main_accounts`,
-      data: upsertData,
-      conflictColumns: ['account_id'],
-      updateColumns: [
-        'owner_address',
-        'owner_account_id',
-        'is_valid',
-        'is_visible',
-        'last_processed_ipfs_hash',
-        'avatar',
-        'color',
-        'last_event_block',
-        'last_event_tx_index',
-        'last_event_log_index',
-      ],
-    });
-
-    const ecosystem = ecosystemMainAccountSchema.parse(result.rows[0]);
-    return ecosystem;
   }
 
   /**

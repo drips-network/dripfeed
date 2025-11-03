@@ -102,43 +102,6 @@ export class PendingNftTransfersRepository {
   }
 
   /**
-   * Gets a pending NFT transfer by account ID.
-   *
-   * @param accountId - The account ID.
-   * @returns The pending NFT transfer or null if not found.
-   */
-  async getPendingNftTransfer(accountId: string): Promise<PendingNftTransfer | null> {
-    const result = await this.client.query<PendingNftTransfer>(
-      `
-      SELECT *
-      FROM ${this.schema}._pending_nft_transfers
-      WHERE account_id = $1
-    `,
-      [accountId],
-    );
-
-    return result.rows[0] || null;
-  }
-
-  /**
-   * Deletes a pending NFT transfer by account ID.
-   *
-   * Includes 'reorged' and 'failed' statuses to ensure proper cleanup during reorg recovery
-   * and to allow handlers to clean up failed entities.
-   *
-   * @param accountId - The account ID.
-   */
-  async deletePendingNftTransfer(accountId: string): Promise<void> {
-    await this.client.query(
-      `
-      DELETE FROM ${this.schema}._pending_nft_transfers
-      WHERE account_id = $1
-    `,
-      [accountId],
-    );
-  }
-
-  /**
    * Atomically migrates a pending NFT transfer to drip_lists table.
    *
    * Deletes from _pending_nft_transfers and upserts into drip_lists in a single CTE.

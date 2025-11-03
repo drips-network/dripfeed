@@ -8,10 +8,6 @@ interface IBlockHash {
   blockHash: string;
 }
 
-interface IBlockHashRow {
-  block_hash: string;
-}
-
 export class BlockHashesRepository {
   private readonly _db: Pool;
 
@@ -74,27 +70,6 @@ export class BlockHashesRepository {
     `;
 
     await tx.query(sql, values);
-  }
-
-  /**
-   * Retrieves the block hash for a specific chain and block number.
-   * Returns null if the block hash is not found.
-   */
-  async getBlockHash(
-    chainId: string,
-    blockNumber: bigint,
-    tx?: PoolClient,
-  ): Promise<string | null> {
-    const db = tx ?? this._db;
-    const result = await db.query<IBlockHashRow>(
-      `
-      SELECT block_hash
-      FROM ${this._schema}._block_hashes
-      WHERE chain_id = $1 AND block_number = $2
-    `,
-      [chainId, blockNumber.toString()],
-    );
-    return result.rows[0]?.block_hash ?? null;
   }
 
   /**
