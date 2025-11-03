@@ -161,38 +161,32 @@ export async function update<
   I extends Record<string, unknown> = Record<string, unknown>,
   W extends keyof I = keyof I,
   U extends keyof I = keyof I,
-  Schema extends Record<string, unknown> = I,
-  C extends Extract<keyof Schema, string> = Extract<keyof Schema, string>,
 >({
   client,
   table,
   data,
   whereColumns,
   updateColumns,
-  computedColumns,
 }: {
   client: PoolClient;
   table: string;
   data: I;
   whereColumns: W[];
   updateColumns: U[];
-  computedColumns?: Partial<Record<C, string>>;
 }): Promise<QueryResult<T>> {
   const { tableSql } = parseAndValidateTable(table);
   const columns = extractAndValidateColumns(table, data as Record<string, unknown>);
-  const computedCols = Object.keys(computedColumns ?? {}) as C[];
 
   if (whereColumns.length === 0) {
     throw new Error(`[${table}] whereColumns cannot be empty`);
   }
 
-  if (updateColumns.length === 0 && computedCols.length === 0) {
-    throw new Error(`[${table}] updateColumns and computedColumns cannot both be empty`);
+  if (updateColumns.length === 0) {
+    throw new Error(`[${table}] updateColumns cannot be empty`);
   }
 
   validateColumnSubset(table, whereColumns.map(String), columns, 'whereColumns');
   validateColumnSubset(table, updateColumns.map(String), columns, 'updateColumns');
-  validateNoOverlap(table, computedCols, columns);
 
   const uniqueWhereColumns = deduplicateValidateAndSortColumns(whereColumns);
   const uniqueUpdateColumns = deduplicateValidateAndSortColumns(updateColumns);
@@ -206,11 +200,9 @@ export async function update<
     .map((col) => `${quoteColumn(col)} = $${paramIndexMap.get(col)}`)
     .join(', ');
 
-  const computedUpdateSet =
-    computedCols.length > 0 ? buildComputedUpdateSet(computedCols, computedColumns!) : '';
   const updatedAtSet = '"updated_at" = NOW()';
 
-  const updateSet = [dataUpdateSet, computedUpdateSet, updatedAtSet].filter(Boolean).join(', ');
+  const updateSet = [dataUpdateSet, updatedAtSet].filter(Boolean).join(', ');
 
   return client.query<T>(
     `
@@ -289,18 +281,6 @@ function validateColumnSubset(
 }
 
 /**
- * Validate that computed columns don't overlap with data columns.
- */
-function validateNoOverlap(table: string, computedCols: string[], dataColumns: string[]): void {
-  const overlapping = computedCols.filter((col) => dataColumns.includes(col));
-  if (overlapping.length > 0) {
-    throw new Error(
-      `[${table}] computedColumns cannot overlap with data columns: ${overlapping.join(', ')}`,
-    );
-  }
-}
-
-/**
  * Deduplicate and validate a list of column names.
  */
 function deduplicateAndValidateColumns(columnNames: string[]): string[] {
@@ -337,35 +317,6 @@ function generateParamIndexMap(columns: string[]): Map<string, number> {
  */
 function buildDataUpdateSet(columns: string[]): string {
   return columns.map((col) => `${quoteColumn(col)} = EXCLUDED.${quoteColumn(col)}`).join(', ');
-}
-
-/**
- * Build UPDATE SET clauses for computed columns (direct SQL expressions).
- *
- * WARNING: Computed column values are raw SQL expressions.
- * All identifiers must be properly quoted to prevent SQL injection.
- * Use double quotes for schema/table/column names (e.g., "schema"."type").
- */
-function buildComputedUpdateSet(
-  columns: string[],
-  computedColumns: Partial<Record<string, string>>,
-): string {
-  columns.forEach((col) => {
-    const expression = computedColumns[col];
-    if (!expression) {
-      throw new Error(`Missing expression for computed column: ${col}`);
-    }
-    // Detect unquoted identifiers: word.word pattern not surrounded by quotes.
-    // This catches common injection patterns like: schema.typename or table.column.
-    if (/(?:^|[^"])(\w+)\.(\w+)(?:[^"]|$)/.test(expression)) {
-      throw new Error(
-        `Computed column "${col}" contains unquoted identifier. ` +
-          `All schema/table/column names must be quoted (e.g., "schema"."type").`,
-      );
-    }
-  });
-
-  return columns.map((col) => `${quoteColumn(col)} = ${computedColumns[col]}`).join(', ');
 }
 
 /**

@@ -28,7 +28,6 @@ interface InspectOptions {
   rpcUrl: string;
 }
 
-
 async function inspect(options: InspectOptions): Promise<void> {
   const block = BigInt(options.block);
 

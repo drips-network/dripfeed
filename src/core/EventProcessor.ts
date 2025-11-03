@@ -4,13 +4,8 @@ import { SpanStatusCode } from '@opentelemetry/api';
 import { isTransientDbError, withDbRetry } from '../utils/dbRetry.js';
 import { logger } from '../logger.js';
 import type { EventRepository, Event as DbEvent } from '../repositories/EventsRepository.js';
-import { DripListsRepository } from '../repositories/DripListsRepository.js';
-import { EcosystemsRepository } from '../repositories/EcosystemsRepository.js';
-import { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
-import { ProjectsRepository } from '../repositories/ProjectsRepository.js';
 import { SplitsRepository } from '../repositories/SplitsRepository.js';
-import { SubListsRepository } from '../repositories/SubListsRepository.js';
 import type { HandlerContext, HandlerEvent } from '../handlers/EventHandler.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -181,12 +176,7 @@ export class EventProcessor {
     return {
       client,
       schema: this._schema,
-      projectsRepo: new ProjectsRepository(client, this._schema),
-      linkedIdentitiesRepo: new LinkedIdentitiesRepository(client, this._schema),
       splitsRepo: new SplitsRepository(client, this._schema),
-      dripListsRepo: new DripListsRepository(client, this._schema),
-      ecosystemsRepo: new EcosystemsRepository(client, this._schema),
-      subListsRepo: new SubListsRepository(client, this._schema),
       pendingNftTransfersRepo: new PendingNftTransfersRepository(client, this._schema),
       metadataService: this._metadataService,
       contracts: this._contracts,

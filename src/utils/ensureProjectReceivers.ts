@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import type z from 'zod';
 
 import type { sourceSchema } from '../metadata/schemas/common/sources.js';
-import { projectSchema, type Project, type ProjectStatus } from '../repositories/ProjectsRepository.js';
+import { projectSchema, type Project, type ProjectStatus } from '../db/schemas.js';
 import type { EventPointer } from '../repositories/types.js';
 import { insertIgnore } from '../db/db.js';
 

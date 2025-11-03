@@ -1,4 +1,4 @@
-import type { Forge } from '../repositories/ProjectsRepository.js';
+import type { Forge } from '../db/schemas.js';
 
 export function convertForgeToNumber(forge: Forge): number {
   if (forge === 'github') return 0;

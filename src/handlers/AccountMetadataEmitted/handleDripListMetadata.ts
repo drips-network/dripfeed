@@ -12,6 +12,8 @@ import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
+import { update } from '../../db/db.js';
+import { dripListSchema, type DripList } from '../../db/schemas.js';
 
 type DripListReceiver = Extract<
   DripListMetadata,
@@ -114,12 +116,32 @@ async function updateDripList(
     last_processed_ipfs_hash: cId,
     is_visible: isVisible,
     is_valid: areSplitsValid,
+    last_event_block: eventPointer.last_event_block,
+    last_event_tx_index: eventPointer.last_event_tx_index,
+    last_event_log_index: eventPointer.last_event_log_index,
   };
 
-  const updateResult = await ctx.dripListsRepo.updateDripList(updates, eventPointer);
+  const updateResult = await update<DripList>({
+    client: ctx.client,
+    table: `${ctx.schema}.drip_lists`,
+    data: updates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'name',
+      'description',
+      'latest_voting_round_id',
+      'last_processed_ipfs_hash',
+      'is_visible',
+      'is_valid',
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  if (updateResult.success) {
-    logger.info('drip_list_updated', { dripList: updateResult.data });
+  if (updateResult.rows.length > 0) {
+    const dripList = dripListSchema.parse(updateResult.rows[0]);
+    logger.info('drip_list_updated', { dripList });
     return;
   }
 
@@ -143,13 +165,30 @@ async function updateDripList(
   });
 
   // Update the newly created drip list with metadata fields.
-  const secondUpdateResult = await ctx.dripListsRepo.updateDripList(updates, eventPointer);
+  const secondUpdateResult = await update<DripList>({
+    client: ctx.client,
+    table: `${ctx.schema}.drip_lists`,
+    data: updates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'name',
+      'description',
+      'latest_voting_round_id',
+      'last_processed_ipfs_hash',
+      'is_visible',
+      'is_valid',
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  if (!secondUpdateResult.success) {
+  if (secondUpdateResult.rows.length === 0) {
     throw new Error(`Failed to update drip list metadata after migration: ${accountId}`);
   }
 
-  logger.info('drip_list_updated', { dripList: secondUpdateResult.data });
+  const dripList = dripListSchema.parse(secondUpdateResult.rows[0]);
+  logger.info('drip_list_updated', { dripList });
 }
 
 async function updateDripListSplits(

@@ -1,12 +1,7 @@
 import type { PoolClient } from 'pg';
 
-import type { DripListsRepository } from '../repositories/DripListsRepository.js';
-import type { EcosystemsRepository } from '../repositories/EcosystemsRepository.js';
-import type { LinkedIdentitiesRepository } from '../repositories/LinkedIdentitiesRepository.js';
 import type { PendingNftTransfersRepository } from '../repositories/PendingNftTransfersRepository.js';
-import type { ProjectsRepository } from '../repositories/ProjectsRepository.js';
 import type { SplitsRepository } from '../repositories/SplitsRepository.js';
-import type { SubListsRepository } from '../repositories/SubListsRepository.js';
 import type { CacheInvalidationService } from '../services/CacheInvalidationService.js';
 import type { Contracts } from '../services/Contracts.js';
 import type { MetadataService } from '../services/MetadataService.js';
@@ -45,12 +40,7 @@ export type HandlerEvent = {
 export type HandlerContext = {
   readonly client: PoolClient;
   readonly schema: string;
-  readonly projectsRepo: ProjectsRepository;
-  readonly linkedIdentitiesRepo: LinkedIdentitiesRepository;
   readonly splitsRepo: SplitsRepository;
-  readonly dripListsRepo: DripListsRepository;
-  readonly ecosystemsRepo: EcosystemsRepository;
-  readonly subListsRepo: SubListsRepository;
   readonly pendingNftTransfersRepo: PendingNftTransfersRepository;
   readonly metadataService: MetadataService;
   readonly contracts: Contracts;

@@ -12,11 +12,13 @@ import { assertValidReceiverType, type AccountType } from '../../utils/splitRule
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
-import { findOne } from '../../db/db.js';
+import { findOne, upsert } from '../../db/db.js';
 import {
   ecosystemMainAccountSchema,
   type EcosystemMainAccount,
-} from '../../repositories/EcosystemsRepository.js';
+  subListSchema,
+  type SubList,
+} from '../../db/schemas.js';
 
 type SubListRecipient = SubListMetadata['recipients'][number];
 
@@ -120,8 +122,10 @@ async function updateSubList(
 
   const { areSplitsValid } = await validateSplits(accountId, ctx.splitsRepo, ctx.contracts);
 
-  const subList = await ctx.subListsRepo.upsertSubList(
-    {
+  const result = await upsert<SubList>({
+    client: ctx.client,
+    table: `${ctx.schema}.sub_lists`,
+    data: {
       account_id: accountId,
       is_valid: areSplitsValid,
       parent_account_id: metadata.parent.accountId,
@@ -129,10 +133,18 @@ async function updateSubList(
       root_account_id: metadata.root.accountId,
       root_account_type: rootAccountType,
       last_processed_ipfs_hash: cId,
+      last_event_block: eventPointer.last_event_block,
+      last_event_tx_index: eventPointer.last_event_tx_index,
+      last_event_log_index: eventPointer.last_event_log_index,
     },
-    eventPointer,
-  );
+    conflictColumns: ['account_id'],
+  });
 
+  if (result.rows.length === 0) {
+    throw new Error(`Sub list upsert affected 0 rows for account_id: ${accountId}`);
+  }
+
+  const subList = subListSchema.parse(result.rows[0]);
   logger.info('sub_list_updated', { subList });
 }
 

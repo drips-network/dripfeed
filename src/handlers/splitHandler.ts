@@ -39,7 +39,7 @@ export const splitHandler: EventHandler<SplitEvent> = async (event, ctx) => {
     conflictColumns: ['transaction_hash', 'log_index'],
   });
 
-  logger.info('split_event_recorded', {
+  logger.info('split_event_processed', {
     accountId: accountId.toString(),
     receiver: receiver.toString(),
     erc20,

@@ -6,12 +6,14 @@ import { mapForge, forgeToUrl } from '../utils/forgeUtils.js';
 import { isOrcidAccount, isProject } from '../utils/repoDriverAccountUtils.js';
 import { toEventPointer } from '../repositories/types.js';
 import { insertIgnore } from '../db/db.js';
-import { projectSchema, type Project, type ProjectStatus } from '../repositories/ProjectsRepository.js';
 import {
+  projectSchema,
+  type Project,
+  type ProjectStatus,
   linkedIdentitySchema,
   type LinkedIdentity,
   type LinkedIdentityType,
-} from '../repositories/LinkedIdentitiesRepository.js';
+} from '../db/schemas.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
 

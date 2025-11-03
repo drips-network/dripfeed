@@ -12,6 +12,8 @@ import { assertValidReceiverType } from '../../utils/splitRules.js';
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
+import { update } from '../../db/db.js';
+import { ecosystemMainAccountSchema, type EcosystemMainAccount } from '../../db/schemas.js';
 
 type EcosystemRecipient = EcosystemMainAccountMetadata['recipients'][number];
 
@@ -95,12 +97,32 @@ async function updateEcosystemMainAccount(
     avatar: metadata.avatar.emoji,
     color: metadata.color,
     is_valid: areSplitsValid,
+    last_event_block: eventPointer.last_event_block,
+    last_event_tx_index: eventPointer.last_event_tx_index,
+    last_event_log_index: eventPointer.last_event_log_index,
   };
 
-  const updateResult = await ctx.ecosystemsRepo.updateEcosystemMainAccount(updates, eventPointer);
+  const updateResult = await update<EcosystemMainAccount>({
+    client: ctx.client,
+    table: `${ctx.schema}.ecosystem_main_accounts`,
+    data: updates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'name',
+      'is_visible',
+      'last_processed_ipfs_hash',
+      'avatar',
+      'color',
+      'is_valid',
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  if (updateResult.success) {
-    logger.info('ecosystem_main_account_updated', { ecosystem: updateResult.data });
+  if (updateResult.rows.length > 0) {
+    const ecosystem = ecosystemMainAccountSchema.parse(updateResult.rows[0]);
+    logger.info('ecosystem_main_account_updated', { ecosystem });
     return;
   }
 
@@ -127,16 +149,30 @@ async function updateEcosystemMainAccount(
   });
 
   // Update the newly created ecosystem with metadata fields.
-  const secondUpdateResult = await ctx.ecosystemsRepo.updateEcosystemMainAccount(
-    updates,
-    eventPointer,
-  );
+  const secondUpdateResult = await update<EcosystemMainAccount>({
+    client: ctx.client,
+    table: `${ctx.schema}.ecosystem_main_accounts`,
+    data: updates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'name',
+      'is_visible',
+      'last_processed_ipfs_hash',
+      'avatar',
+      'color',
+      'is_valid',
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  if (!secondUpdateResult.success) {
+  if (secondUpdateResult.rows.length === 0) {
     throw new Error(`Failed to update ecosystem metadata after migration: ${accountId}`);
   }
 
-  logger.info('ecosystem_main_account_updated', { ecosystem: secondUpdateResult.data });
+  const ecosystem = ecosystemMainAccountSchema.parse(secondUpdateResult.rows[0]);
+  logger.info('ecosystem_main_account_updated', { ecosystem });
 }
 
 async function updateEcosystemSplits(

@@ -10,15 +10,21 @@ import { toEventPointer } from '../../repositories/types.js';
 import { unreachable } from '../../utils/unreachable.js';
 import type { EventHandler, HandlerEvent } from '../EventHandler.js';
 import { validateSplits } from '../../utils/validateSplits.js';
-import { upsert, findOne } from '../../db/db.js';
+import { upsert, findOne, update } from '../../db/db.js';
 import { splitsSetEvents } from '../../db/schema.js';
-import { projectSchema, type Project } from '../../repositories/ProjectsRepository.js';
-import { dripListSchema, type DripList } from '../../repositories/DripListsRepository.js';
 import {
+  projectSchema,
+  type Project,
+  dripListSchema,
+  type DripList,
   ecosystemMainAccountSchema,
   type EcosystemMainAccount,
-} from '../../repositories/EcosystemsRepository.js';
-import { subListSchema, type SubList } from '../../repositories/SubListsRepository.js';
+  subListSchema,
+  type SubList,
+  linkedIdentitySchema,
+  type LinkedIdentity,
+} from '../../db/schemas.js';
+import { calculateProjectVerificationStatus } from '../../utils/calculateProjectVerificationStatus.js';
 
 import { isSplittingToOwnerOnly } from './isSplittingToOwnerOnly.js';
 
@@ -33,17 +39,7 @@ type SplitsSetEvent = HandlerEvent & {
 
 export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx) => {
   const { accountId, receiversHash: splitsHashFromEvent } = event.args;
-  const {
-    client,
-    schema,
-    projectsRepo,
-    linkedIdentitiesRepo,
-    dripListsRepo,
-    ecosystemsRepo,
-    subListsRepo,
-    splitsRepo,
-    contracts,
-  } = ctx;
+  const { client, schema, splitsRepo, contracts } = ctx;
 
   const splitsSetEvent = splitsSetEventSchema.parse({
     account_id: accountId.toString(),
@@ -70,7 +66,13 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
   const eventPointer = toEventPointer(event);
 
   if (isOrcidAccount(accountIdStr)) {
-    const linkedIdentity = await linkedIdentitiesRepo.getLinkedIdentity(accountIdStr);
+    const linkedIdentity = await findOne<LinkedIdentity>({
+      client,
+      table: `${schema}.linked_identities`,
+      where: { account_id: accountIdStr },
+      schema: linkedIdentitySchema,
+    });
+
     if (!linkedIdentity || !linkedIdentity.owner_account_id) {
       throw new Error(
         `ORCID with account ID ${accountIdStr} not found or has no owner while processing splits but was expected to exist`,
@@ -86,25 +88,37 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
         contracts.drips,
       ));
 
-    const result = await linkedIdentitiesRepo.updateLinkedIdentity(
-      {
+    const result = await update<LinkedIdentity>({
+      client,
+      table: `${schema}.linked_identities`,
+      data: {
         account_id: accountIdStr,
         are_splits_valid: areSplitsValid,
+        last_event_block: eventPointer.last_event_block,
+        last_event_tx_index: eventPointer.last_event_tx_index,
+        last_event_log_index: eventPointer.last_event_log_index,
       },
-      eventPointer,
-    );
+      whereColumns: ['account_id'],
+      updateColumns: [
+        'are_splits_valid',
+        'last_event_block',
+        'last_event_tx_index',
+        'last_event_log_index',
+      ],
+    });
 
-    if (!result.success) {
+    if (result.rows.length === 0) {
       unreachable(`ORCID with account ID ${accountIdStr} disappeared during splits validation`);
     }
 
+    const updatedLinkedIdentity = linkedIdentitySchema.parse(result.rows[0]);
     logger.info('orcid_splits_validity_updated', {
       accountId: accountIdStr,
       receiversHashFromEvent: splitsHashFromEvent,
       onChainCurrentSplitsHash,
       areSplitsValid,
       ownerAccountId: linkedIdentity.owner_account_id,
-      identityType: result.data.identity_type,
+      identityType: updatedLinkedIdentity.identity_type,
     });
   } else if (isProject(accountIdStr)) {
     const project = await findOne<Project>({
@@ -125,21 +139,41 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       contracts,
     );
 
-    const result = await projectsRepo.updateProject(
-      {
-        account_id: accountIdStr,
-        is_valid: areSplitsValid,
-      },
-      eventPointer,
+    const verification_status = calculateProjectVerificationStatus(
+      project.owner_address,
+      project.owner_account_id,
+      project.last_processed_ipfs_hash,
     );
 
-    if (!result.success) {
+    const result = await update<Project>({
+      client,
+      table: `${schema}.projects`,
+      data: {
+        account_id: accountIdStr,
+        is_valid: areSplitsValid,
+        verification_status,
+        last_event_block: eventPointer.last_event_block,
+        last_event_tx_index: eventPointer.last_event_tx_index,
+        last_event_log_index: eventPointer.last_event_log_index,
+      },
+      whereColumns: ['account_id'],
+      updateColumns: [
+        'is_valid',
+        'verification_status',
+        'last_event_block',
+        'last_event_tx_index',
+        'last_event_log_index',
+      ],
+    });
+
+    if (result.rows.length === 0) {
       unreachable(`Project with account ID ${accountIdStr} disappeared during splits validation`);
     }
 
+    const updatedProject = projectSchema.parse(result.rows[0]);
     logger.info('project_splits_validity_updated', {
       accountId: accountIdStr,
-      projectName: result.data.name,
+      projectName: updatedProject.name,
       receiversHashFromEvent: splitsHashFromEvent,
       dbSplitsHash,
       onChainCurrentSplitsHash,
@@ -180,46 +214,70 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     );
 
     if (dripList) {
-      const result = await dripListsRepo.updateDripList(
-        {
+      const result = await update<DripList>({
+        client,
+        table: `${schema}.drip_lists`,
+        data: {
           account_id: accountIdStr,
           is_valid: areSplitsValid,
+          last_event_block: eventPointer.last_event_block,
+          last_event_tx_index: eventPointer.last_event_tx_index,
+          last_event_log_index: eventPointer.last_event_log_index,
         },
-        eventPointer,
-      );
+        whereColumns: ['account_id'],
+        updateColumns: [
+          'is_valid',
+          'last_event_block',
+          'last_event_tx_index',
+          'last_event_log_index',
+        ],
+      });
 
-      if (!result.success) {
+      if (result.rows.length === 0) {
         unreachable(
           `Drip List with account ID ${accountIdStr} disappeared during splits validation`,
         );
       }
 
+      const updatedDripList = dripListSchema.parse(result.rows[0]);
       logger.info('drip_list_splits_validity_updated', {
         accountId: accountIdStr,
-        dripListName: result.data.name,
+        dripListName: updatedDripList.name,
         receiversHashFromEvent: splitsHashFromEvent,
         dbSplitsHash,
         onChainCurrentSplitsHash,
         areSplitsValid,
       });
     } else {
-      const result = await ecosystemsRepo.updateEcosystemMainAccount(
-        {
+      const result = await update<EcosystemMainAccount>({
+        client,
+        table: `${schema}.ecosystem_main_accounts`,
+        data: {
           account_id: accountIdStr,
           is_valid: areSplitsValid,
+          last_event_block: eventPointer.last_event_block,
+          last_event_tx_index: eventPointer.last_event_tx_index,
+          last_event_log_index: eventPointer.last_event_log_index,
         },
-        eventPointer,
-      );
+        whereColumns: ['account_id'],
+        updateColumns: [
+          'is_valid',
+          'last_event_block',
+          'last_event_tx_index',
+          'last_event_log_index',
+        ],
+      });
 
-      if (!result.success) {
+      if (result.rows.length === 0) {
         unreachable(
           `Ecosystem with account ID ${accountIdStr} disappeared during splits validation`,
         );
       }
 
+      const updatedEcosystem = ecosystemMainAccountSchema.parse(result.rows[0]);
       logger.info('ecosystem_splits_validity_updated', {
         accountId: accountIdStr,
-        ecosystemName: result.data.name,
+        ecosystemName: updatedEcosystem.name,
         receiversHashFromEvent: splitsHashFromEvent,
         dbSplitsHash,
         onChainCurrentSplitsHash,
@@ -245,15 +303,26 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       contracts,
     );
 
-    const result = await subListsRepo.updateSubList(
-      {
+    const result = await update<SubList>({
+      client,
+      table: `${schema}.sub_lists`,
+      data: {
         account_id: accountIdStr,
         is_valid: areSplitsValid,
+        last_event_block: eventPointer.last_event_block,
+        last_event_tx_index: eventPointer.last_event_tx_index,
+        last_event_log_index: eventPointer.last_event_log_index,
       },
-      eventPointer,
-    );
+      whereColumns: ['account_id'],
+      updateColumns: [
+        'is_valid',
+        'last_event_block',
+        'last_event_tx_index',
+        'last_event_log_index',
+      ],
+    });
 
-    if (!result.success) {
+    if (result.rows.length === 0) {
       unreachable(`Sub List with account ID ${accountIdStr} disappeared during splits validation`);
     }
 

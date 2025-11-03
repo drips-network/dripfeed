@@ -11,8 +11,9 @@ import type { EventPointer } from '../../repositories/types.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
-import { findOne } from '../../db/db.js';
-import { projectSchema, type Project } from '../../repositories/ProjectsRepository.js';
+import { findOne, update } from '../../db/db.js';
+import { projectSchema, type Project } from '../../db/schemas.js';
+import { calculateProjectVerificationStatus } from '../../utils/calculateProjectVerificationStatus.js';
 
 export async function handleProjectMetadata(
   projectId: string,
@@ -103,19 +104,39 @@ async function updateProject(
     updates.emoji = metadata.emoji;
   }
 
-  const result = await ctx.projectsRepo.updateProject(
-    {
-      account_id: projectId,
-      ...updates,
-    },
-    eventPointer,
+  const verification_status = calculateProjectVerificationStatus(
+    project.owner_address,
+    project.owner_account_id,
+    cId,
   );
 
-  if (!result.success) {
+  const result = await update<Project>({
+    client: ctx.client,
+    table: `${ctx.schema}.projects`,
+    data: {
+      account_id: projectId,
+      ...updates,
+      verification_status,
+      last_event_block: eventPointer.last_event_block,
+      last_event_tx_index: eventPointer.last_event_tx_index,
+      last_event_log_index: eventPointer.last_event_log_index,
+    },
+    whereColumns: ['account_id'],
+    updateColumns: [
+      ...Object.keys(updates),
+      'verification_status',
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ] as Array<keyof Project>,
+  });
+
+  if (result.rows.length === 0) {
     throw new Error(`Project not found for account_id: ${projectId}`);
   }
 
-  logger.info('project_metadata_updated', { project: result.data });
+  const updatedProject = projectSchema.parse(result.rows[0]);
+  logger.info('project_metadata_updated', { project: updatedProject });
 }
 
 async function updateProjectSplits(

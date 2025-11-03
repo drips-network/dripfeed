@@ -3,11 +3,15 @@ import { createInsertSchema } from 'drizzle-zod';
 
 import type { NftDriverAbi } from '../chains/abis/abiTypes.js';
 import { logger } from '../logger.js';
-import type { UpdateDripListData } from '../repositories/DripListsRepository.js';
-import type { UpdateEcosystemMainAccountData } from '../repositories/EcosystemsRepository.js';
 import { toEventPointer } from '../repositories/types.js';
-import { upsert } from '../db/db.js';
+import { upsert, update } from '../db/db.js';
 import { transferEvents } from '../db/schema.js';
+import {
+  dripListSchema,
+  type DripList,
+  ecosystemMainAccountSchema,
+  type EcosystemMainAccount,
+} from '../db/schemas.js';
 
 import type { EventHandler, HandlerEvent } from './EventHandler.js';
 
@@ -25,8 +29,6 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
   const {
     client,
     schema,
-    dripListsRepo,
-    ecosystemsRepo,
     pendingNftTransfersRepo,
     contracts,
     visibilityThresholdBlockNumber,
@@ -74,47 +76,78 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
         : true, // If the block number is less than or equal to the visibility threshold, then the entity is visible by default.
   };
 
-  const dripListUpdates: UpdateDripListData = {
+  const dripListUpdates = {
     account_id: accountId,
     ...commonData,
+    ...(isMint && { creator: to }),
+    last_event_block: eventPointer.last_event_block,
+    last_event_tx_index: eventPointer.last_event_tx_index,
+    last_event_log_index: eventPointer.last_event_log_index,
   };
 
-  if (isMint) {
-    dripListUpdates.creator = to;
-  }
+  const dripListResult = await update<DripList>({
+    client,
+    table: `${schema}.drip_lists`,
+    data: dripListUpdates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'owner_address',
+      'owner_account_id',
+      'previous_owner_address',
+      'is_visible',
+      ...(isMint ? ['creator' as const] : []),
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  const dripListResult = await dripListsRepo.updateDripList(dripListUpdates, eventPointer);
-
-  if (dripListResult.success) {
+  if (dripListResult.rows.length > 0) {
+    const dripList = dripListSchema.parse(dripListResult.rows[0]);
     logger.info('drip_list_transfer_processed', {
       accountId,
       isMint,
       from,
       to,
+      dripList,
     });
     return;
   }
 
-  const ecosystemUpdates: UpdateEcosystemMainAccountData = {
+  const ecosystemUpdates = {
     account_id: accountId,
     ...commonData,
+    ...(isMint && { creator: to }),
+    last_event_block: eventPointer.last_event_block,
+    last_event_tx_index: eventPointer.last_event_tx_index,
+    last_event_log_index: eventPointer.last_event_log_index,
   };
 
-  if (isMint) {
-    ecosystemUpdates.creator = to;
-  }
+  const ecosystemResult = await update<EcosystemMainAccount>({
+    client,
+    table: `${schema}.ecosystem_main_accounts`,
+    data: ecosystemUpdates,
+    whereColumns: ['account_id'],
+    updateColumns: [
+      'owner_address',
+      'owner_account_id',
+      'previous_owner_address',
+      'is_visible',
+      ...(isMint ? ['creator' as const] : []),
+      'last_event_block',
+      'last_event_tx_index',
+      'last_event_log_index',
+    ],
+  });
 
-  const ecosystemResult = await ecosystemsRepo.updateEcosystemMainAccount(
-    ecosystemUpdates,
-    eventPointer,
-  );
-
-  if (ecosystemResult.success) {
+  if (ecosystemResult.rows.length > 0) {
+    const ecosystem = ecosystemMainAccountSchema.parse(ecosystemResult.rows[0]);
     logger.info('ecosystem_transfer_processed', {
       accountId,
       isMint,
       from,
       to,
+      ecosystem,
     });
     return;
   }
