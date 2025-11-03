@@ -8,7 +8,6 @@ import Table from 'cli-table3';
 import { Command } from 'commander';
 
 import { validateSchemaName } from '../src/utils/sqlValidation.js';
-
 import { formatNumber } from './shared/formatting.js';
 
 type ProgressMetrics = {
@@ -58,6 +57,9 @@ class ProgressMonitor {
 
     // Initial RPC call.
     await this._updateLatestBlock();
+
+    // Initial DB poll.
+    await this._updateMetrics();
 
     // Update RPC every 10 seconds.
     setInterval(() => {

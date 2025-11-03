@@ -21,7 +21,8 @@
     "inspect:db": "tsx scripts/inspect-db.ts",
     "inspect:orphans": "tsx scripts/inspect-orphans.ts",
     "inspect:account-history": "tsx scripts/inspect-account-history.ts",
-    "compare-dbs": "tsx scripts/compare-databases.ts"
+    "compare-dbs": "tsx scripts/compare-databases.ts",
+    "monitor": "tsx scripts/monitor-progress.ts"
   },
   "keywords": [],
   "author": "",
