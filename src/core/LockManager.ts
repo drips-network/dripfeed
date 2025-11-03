@@ -46,7 +46,7 @@ export class LockManager {
         lockConn.release();
 
         if (attempt < maxAttempts) {
-          logger.warn('lock_busy_retrying', {
+          logger.info('lock_busy_retrying', {
             attempt,
             retryInMs: retryDelayMs,
             chain: this._chainId,
