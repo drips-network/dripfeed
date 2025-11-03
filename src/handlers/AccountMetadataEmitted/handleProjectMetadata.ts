@@ -11,6 +11,8 @@ import type { EventPointer } from '../../repositories/types.js';
 import { assertValidReceiverType } from '../../utils/splitRules.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
+import { findOne } from '../../db/db.js';
+import { projectSchema, type Project } from '../../repositories/ProjectsRepository.js';
 
 export async function handleProjectMetadata(
   projectId: string,
@@ -38,7 +40,7 @@ export async function handleProjectMetadata(
     [...projectSplits, { accountId: projectId, source: metadata.source }],
     ctx.contracts,
   );
-  await ensureProjectReceivers(projectSplits, ctx.projectsRepo, eventPointer);
+  await ensureProjectReceivers(projectSplits, ctx.client, ctx.schema, eventPointer);
   await updateProjectSplits(projectId, blockTimestamp, metadata, ctx.splitsRepo, eventPointer);
   await updateProject(metadata, cId, ctx, projectId, eventPointer);
 }
@@ -52,7 +54,12 @@ async function updateProject(
 ) {
   const { areSplitsValid } = await validateSplits(projectId, ctx.splitsRepo, ctx.contracts);
 
-  const project = await ctx.projectsRepo.findById(projectId);
+  const project = await findOne<Project>({
+    client: ctx.client,
+    table: `${ctx.schema}.projects`,
+    where: { account_id: projectId },
+    schema: projectSchema,
+  });
   if (!project) {
     throw new Error(`Project not found for account_id: ${projectId}`);
   }

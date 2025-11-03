@@ -10,8 +10,15 @@ import { toEventPointer } from '../../repositories/types.js';
 import { unreachable } from '../../utils/unreachable.js';
 import type { EventHandler, HandlerEvent } from '../EventHandler.js';
 import { validateSplits } from '../../utils/validateSplits.js';
-import { upsert } from '../../db/db.js';
+import { upsert, findOne } from '../../db/db.js';
 import { splitsSetEvents } from '../../db/schema.js';
+import { projectSchema, type Project } from '../../repositories/ProjectsRepository.js';
+import { dripListSchema, type DripList } from '../../repositories/DripListsRepository.js';
+import {
+  ecosystemMainAccountSchema,
+  type EcosystemMainAccount,
+} from '../../repositories/EcosystemsRepository.js';
+import { subListSchema, type SubList } from '../../repositories/SubListsRepository.js';
 
 import { isSplittingToOwnerOnly } from './isSplittingToOwnerOnly.js';
 
@@ -100,7 +107,12 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       identityType: result.data.identity_type,
     });
   } else if (isProject(accountIdStr)) {
-    const project = await ctx.projectsRepo.findById(accountIdStr);
+    const project = await findOne<Project>({
+      client,
+      table: `${schema}.projects`,
+      where: { account_id: accountIdStr },
+      schema: projectSchema,
+    });
     if (!project) {
       throw new Error(
         `Project with account ID ${accountIdStr} not found while processing splits but was expected to exist`,
@@ -135,8 +147,18 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
     });
   } else if (isNftDriverId(accountIdStr)) {
     const [dripList, ecosystem] = await Promise.all([
-      dripListsRepo.findById(accountIdStr),
-      ecosystemsRepo.findById(accountIdStr),
+      findOne<DripList>({
+        client,
+        table: `${schema}.drip_lists`,
+        where: { account_id: accountIdStr },
+        schema: dripListSchema,
+      }),
+      findOne<EcosystemMainAccount>({
+        client,
+        table: `${schema}.ecosystem_main_accounts`,
+        where: { account_id: accountIdStr },
+        schema: ecosystemMainAccountSchema,
+      }),
     ]);
 
     if (!dripList && !ecosystem) {
@@ -205,7 +227,12 @@ export const splitsSetHandler: EventHandler<SplitsSetEvent> = async (event, ctx)
       });
     }
   } else if (isImmutableSplitsDriverId(accountIdStr)) {
-    const subList = await subListsRepo.findById(accountIdStr);
+    const subList = await findOne<SubList>({
+      client,
+      table: `${schema}.sub_lists`,
+      where: { account_id: accountIdStr },
+      schema: subListSchema,
+    });
     if (!subList) {
       unreachable(
         `No sub list found for Immutable Splits Driver account ID ${accountIdStr} while processing splits but was expected to exist`,

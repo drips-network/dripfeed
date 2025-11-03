@@ -12,6 +12,11 @@ import { assertValidReceiverType, type AccountType } from '../../utils/splitRule
 import type { EventPointer } from '../../repositories/types.js';
 import { validateSplits } from '../../utils/validateSplits.js';
 import { ensureProjectReceivers } from '../../utils/ensureProjectReceivers.js';
+import { findOne } from '../../db/db.js';
+import {
+  ecosystemMainAccountSchema,
+  type EcosystemMainAccount,
+} from '../../repositories/EcosystemsRepository.js';
 
 type SubListRecipient = SubListMetadata['recipients'][number];
 
@@ -47,7 +52,7 @@ export async function handleSubListMetadata(
   const recipients = metadata.recipients;
   const projectRecipients = await verifyGitHubProjectSources(recipients, ctx);
   await validateRootAndParentExist(metadata, ctx);
-  await ensureProjectReceivers(projectRecipients, ctx.projectsRepo, eventPointer);
+  await ensureProjectReceivers(projectRecipients, ctx.client, ctx.schema, eventPointer);
   await updateSubListSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateSubList(metadata, cId, accountId, ctx, eventPointer);
 }
@@ -80,13 +85,23 @@ async function validateRootAndParentExist(
   metadata: SubListMetadata,
   ctx: HandlerContext,
 ): Promise<void> {
-  const parent = await ctx.ecosystemsRepo.findById(metadata.parent.accountId);
+  const parent = await findOne<EcosystemMainAccount>({
+    client: ctx.client,
+    table: `${ctx.schema}.ecosystem_main_accounts`,
+    where: { account_id: metadata.parent.accountId },
+    schema: ecosystemMainAccountSchema,
+  });
 
   if (!parent) {
     throw new Error(`Parent Ecosystem Main Account '${metadata.parent.accountId}' not found`);
   }
 
-  const root = await ctx.ecosystemsRepo.findById(metadata.root.accountId);
+  const root = await findOne<EcosystemMainAccount>({
+    client: ctx.client,
+    table: `${ctx.schema}.ecosystem_main_accounts`,
+    where: { account_id: metadata.root.accountId },
+    schema: ecosystemMainAccountSchema,
+  });
 
   if (!root) {
     throw new Error(`Root Ecosystem Main Account '${metadata.root.accountId}' not found`);

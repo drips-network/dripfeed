@@ -8,7 +8,7 @@ import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
-const ecosystemMainAccountSchema = createSelectSchema(ecosystemMainAccounts);
+export const ecosystemMainAccountSchema = createSelectSchema(ecosystemMainAccounts);
 export type EcosystemMainAccount = z.infer<typeof ecosystemMainAccountSchema>;
 
 export const upsertEcosystemMainAccountInputSchema = ecosystemMainAccountSchema.pick({
@@ -52,25 +52,6 @@ export class EcosystemsRepository {
     private readonly schema: string,
   ) {
     validateSchemaName(schema);
-  }
-
-  /**
-   * Finds an ecosystem main account by account ID.
-   *
-   * @param accountId - The ecosystem main account ID.
-   * @returns The ecosystem main account if found, null otherwise.
-   */
-  async findById(accountId: string): Promise<EcosystemMainAccount | null> {
-    const result = await this.client.query<EcosystemMainAccount>(
-      `SELECT * FROM ${this.schema}.ecosystem_main_accounts WHERE account_id = $1`,
-      [accountId],
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    return ecosystemMainAccountSchema.parse(result.rows[0]);
   }
 
   /**

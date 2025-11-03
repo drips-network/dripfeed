@@ -8,7 +8,7 @@ import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
-const dripListSchema = createSelectSchema(dripLists);
+export const dripListSchema = createSelectSchema(dripLists);
 export type DripList = z.infer<typeof dripListSchema>;
 
 export const upsertDripListInputSchema = dripListSchema.pick({
@@ -47,25 +47,6 @@ export class DripListsRepository {
     private readonly schema: string,
   ) {
     validateSchemaName(schema);
-  }
-
-  /**
-   * Finds a drip list by account ID.
-   *
-   * @param accountId - The drip list account ID.
-   * @returns The drip list if found, null otherwise.
-   */
-  async findById(accountId: string): Promise<DripList | null> {
-    const result = await this.client.query<DripList>(
-      `SELECT * FROM ${this.schema}.drip_lists WHERE account_id = $1`,
-      [accountId],
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    return dripListSchema.parse(result.rows[0]);
   }
 
   /**

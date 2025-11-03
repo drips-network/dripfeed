@@ -42,7 +42,7 @@ export async function handleDripListMetadata(
 
   const splits = extractReceivers(metadata);
   const projectReceivers = await verifyGitHubProjectSources(splits, ctx);
-  await ensureProjectReceivers(projectReceivers, ctx.projectsRepo, eventPointer);
+  await ensureProjectReceivers(projectReceivers, ctx.client, ctx.schema, eventPointer);
   await updateDripListSplits(
     dripListId.toString(),
     blockTimestamp,

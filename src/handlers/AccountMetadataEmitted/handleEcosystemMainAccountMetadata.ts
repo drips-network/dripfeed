@@ -42,7 +42,7 @@ export async function handleEcosystemMainAccountMetadata(
 
   const recipients = metadata.recipients;
   const projectRecipients = await verifyGitHubProjectSources(recipients, ctx);
-  await ensureProjectReceivers(projectRecipients, ctx.projectsRepo, eventPointer);
+  await ensureProjectReceivers(projectRecipients, ctx.client, ctx.schema, eventPointer);
   await updateEcosystemSplits(accountId, blockTimestamp, recipients, ctx.splitsRepo, eventPointer);
   await updateEcosystemMainAccount(metadata, cId, accountId, blockNumber, ctx, eventPointer);
 }

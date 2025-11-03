@@ -3,23 +3,15 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { projects } from '../db/schema.js';
-import { upsertPartial, update } from '../db/db.js';
+import { update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
-const projectSchema = createSelectSchema(projects);
+export const projectSchema = createSelectSchema(projects);
 export type Project = z.infer<typeof projectSchema>;
 export type Forge = z.infer<typeof projectSchema.shape.forge>;
 export type ProjectStatus = z.infer<typeof projectSchema.shape.verification_status>;
-
-const ensureUnclaimedProjectInputSchema = projectSchema.pick({
-  account_id: true,
-  forge: true,
-  name: true,
-  url: true,
-});
-type EnsureUnclaimedProject = z.infer<typeof ensureUnclaimedProjectInputSchema>;
 
 const updateProjectDataInputSchema = projectSchema
   .omit({
@@ -33,11 +25,6 @@ const updateProjectDataInputSchema = projectSchema
   .required({ account_id: true });
 
 export type UpdateProjectData = z.infer<typeof updateProjectDataInputSchema>;
-
-export type EnsureProjectResult = {
-  project: Project;
-  created: boolean;
-};
 
 const IMMUTABLE_FIELDS: Set<keyof Project> = new Set([
   'account_id',
@@ -54,104 +41,6 @@ export class ProjectsRepository {
     private readonly schema: string,
   ) {
     validateSchemaName(schema);
-  }
-
-  /**
-   * Ensures a project exists.
-   *
-   * If no project exists, creates one in unclaimed state.
-   * If a project already exists, returns it unchanged (upsert semantics).
-   *
-   * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
-   *
-   * Replayable: running with the same inputs yields the same persisted state.
-   *
-   * @param data.account_id - Project account ID.
-   * @param data.forge - Source forge.
-   * @param data.name - Project name (`<owner>/<repo>`).
-   * @param data.url - Project URL.
-   * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted project row and whether it was created.
-   */
-  async ensureUnclaimedProject(
-    data: EnsureUnclaimedProject,
-    eventPointer: EventPointer,
-  ): Promise<EnsureProjectResult> {
-    ensureUnclaimedProjectInputSchema.parse(data);
-
-    const existing = await this.findById(data.account_id);
-    if (existing) {
-      return { project: existing, created: false };
-    }
-
-    const upsertData = {
-      account_id: data.account_id,
-      forge: data.forge,
-      name: data.name,
-      owner_address: null,
-      owner_account_id: null,
-      url: data.url,
-      verification_status: 'unclaimed' as ProjectStatus,
-      is_valid: true, // no splits yet, so valid by default
-      is_visible: true,
-      last_event_block: eventPointer.last_event_block,
-      last_event_tx_index: eventPointer.last_event_tx_index,
-      last_event_log_index: eventPointer.last_event_log_index,
-    };
-
-    const result = await upsertPartial<
-      Project,
-      typeof upsertData,
-      'account_id',
-      | 'forge'
-      | 'name'
-      | 'url'
-      | 'owner_address'
-      | 'owner_account_id'
-      | 'verification_status'
-      | 'last_event_block'
-      | 'last_event_tx_index'
-      | 'last_event_log_index',
-      Project
-    >({
-      client: this.client,
-      table: `${this.schema}.projects`,
-      data: upsertData,
-      conflictColumns: ['account_id'],
-      updateColumns: [
-        'forge',
-        'name',
-        'url',
-        'owner_address',
-        'owner_account_id',
-        'verification_status',
-        'last_event_block',
-        'last_event_tx_index',
-        'last_event_log_index',
-      ],
-    });
-
-    const project = projectSchema.parse(result.rows[0]);
-    return { project, created: true };
-  }
-
-  /**
-   * Finds a project by its account ID.
-   *
-   * @param accountId - Project account ID.
-   * @returns The project if found, null otherwise.
-   */
-  async findById(accountId: string): Promise<Project | null> {
-    const result = await this.client.query<Project>(
-      `SELECT * FROM ${this.schema}.projects WHERE account_id = $1`,
-      [accountId],
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    return projectSchema.parse(result.rows[0]);
   }
 
   /**

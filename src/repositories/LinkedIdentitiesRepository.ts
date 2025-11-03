@@ -3,20 +3,14 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { linkedIdentities } from '../db/schema.js';
-import { upsertPartial, update } from '../db/db.js';
+import { update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
-const linkedIdentitySchema = createSelectSchema(linkedIdentities);
+export const linkedIdentitySchema = createSelectSchema(linkedIdentities);
 export type LinkedIdentity = z.infer<typeof linkedIdentitySchema>;
 export type LinkedIdentityType = z.infer<typeof linkedIdentitySchema.shape.identity_type>;
-
-const ensureUnclaimedLinkedIdentityInputSchema = linkedIdentitySchema.pick({
-  account_id: true,
-  identity_type: true,
-});
-type EnsureUnclaimedLinkedIdentity = z.infer<typeof ensureUnclaimedLinkedIdentityInputSchema>;
 
 const updateLinkedIdentityDataInputSchema = linkedIdentitySchema
   .omit({
@@ -64,73 +58,6 @@ export class LinkedIdentitiesRepository {
     }
 
     return linkedIdentitySchema.parse(result.rows[0]);
-  }
-
-  /**
-   * Ensures a linked identity exists.
-   *
-   * If no linked identity exists, creates one in unclaimed state.
-   * If a linked identity already exists, returns it unchanged (upsert semantics).
-   *
-   * **Note**: `OwnerUpdated` is the source of truth for ownership changes.
-   *
-   * @param data - Linked identity data.
-   * @param eventPointer - Blockchain event that triggered this operation.
-   * @returns The persisted linked identity row and whether it was created.
-   */
-  async ensureUnclaimedLinkedIdentity(
-    data: EnsureUnclaimedLinkedIdentity,
-    eventPointer: EventPointer,
-  ): Promise<EnsureLinkedIdentityResult> {
-    ensureUnclaimedLinkedIdentityInputSchema.parse(data);
-
-    const existing = await this.getLinkedIdentity(data.account_id);
-    if (existing) {
-      return { linkedIdentity: existing, created: false };
-    }
-
-    const upsertData = {
-      account_id: data.account_id,
-      identity_type: data.identity_type,
-      owner_address: null,
-      owner_account_id: null,
-      are_splits_valid: false, // Until it splits 100% to owner.
-      is_visible: true,
-      last_event_block: eventPointer.last_event_block,
-      last_event_tx_index: eventPointer.last_event_tx_index,
-      last_event_log_index: eventPointer.last_event_log_index,
-    };
-
-    const result = await upsertPartial<
-      LinkedIdentity,
-      typeof upsertData,
-      'account_id',
-      | 'identity_type'
-      | 'owner_address'
-      | 'owner_account_id'
-      | 'are_splits_valid'
-      | 'last_event_block'
-      | 'last_event_tx_index'
-      | 'last_event_log_index',
-      LinkedIdentity
-    >({
-      client: this.client,
-      table: `${this.schema}.linked_identities`,
-      data: upsertData,
-      conflictColumns: ['account_id'],
-      updateColumns: [
-        'identity_type',
-        'owner_address',
-        'owner_account_id',
-        'are_splits_valid',
-        'last_event_block',
-        'last_event_tx_index',
-        'last_event_log_index',
-      ],
-    });
-
-    const linkedIdentity = linkedIdentitySchema.parse(result.rows[0]);
-    return { linkedIdentity, created: true };
   }
 
   async updateLinkedIdentity(

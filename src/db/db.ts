@@ -1,10 +1,43 @@
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
+import type { z } from 'zod';
 
 import {
   formatQualifiedTable,
   parseQualifiedTable,
   validateIdentifier,
 } from '../utils/sqlValidation.js';
+
+/**
+ * Find a single row by column values.
+ *
+ * Returns null if no row matches the WHERE clause.
+ */
+export async function findOne<T extends QueryResultRow = QueryResultRow>({
+  client,
+  table,
+  where,
+  schema,
+}: {
+  client: PoolClient;
+  table: string;
+  where: Record<string, unknown>;
+  schema: z.ZodType<T>;
+}): Promise<T | null> {
+  const { tableSql } = parseAndValidateTable(table);
+  const columns = extractAndValidateColumns(table, where);
+
+  const values = columns.map((col) => where[col]);
+  const paramIndexMap = generateParamIndexMap(columns);
+  const whereClause = buildWhereClause(columns, paramIndexMap);
+
+  const result = await client.query<T>(`SELECT * FROM ${tableSql} WHERE ${whereClause}`, values);
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return schema.parse(result.rows[0]);
+}
 
 /**
  * Insert a row, or update **all** provided columns when a conflict occurs.
@@ -33,7 +66,9 @@ export async function upsert<T extends QueryResultRow = QueryResultRow>({
 
   const values = columns.map((col) => data[col]);
   const placeholders = generatePlaceholders(columns.length);
-  const updateSet = buildDataUpdateSet(columns);
+  const dataUpdateSet = buildDataUpdateSet(columns);
+  const updatedAtSet = '"updated_at" = NOW()';
+  const updateSet = [dataUpdateSet, updatedAtSet].filter(Boolean).join(', ');
 
   return client.query<T>(
     `
@@ -48,70 +83,72 @@ export async function upsert<T extends QueryResultRow = QueryResultRow>({
 }
 
 /**
- * Insert a row, or update only a **subset** of columns when a conflict occurs.
+ * Insert a row, or do nothing when a conflict occurs.
  *
  * Replayable: running with the same inputs yields the same persisted state, excluding DB-managed side effects.
  */
-export async function upsertPartial<
-  T extends QueryResultRow = QueryResultRow,
-  I extends Record<string, unknown> = Record<string, unknown>,
-  C extends keyof I = keyof I,
-  K extends keyof I = keyof I,
-  Schema extends Record<string, unknown> = I,
-  Computed extends Extract<keyof Schema, string> = Extract<keyof Schema, string>,
->({
+export async function insertIgnore<T extends QueryResultRow = QueryResultRow>({
   client,
   table,
   data,
   conflictColumns,
-  updateColumns,
-  computedColumns,
+  schema,
 }: {
   client: PoolClient;
   table: string;
-  data: I;
-  conflictColumns: C[];
-  updateColumns: K[];
-  computedColumns?: Partial<Record<Computed, string>>;
-}): Promise<QueryResult<T>> {
+  data: Record<string, unknown>;
+  conflictColumns: string[];
+  schema: z.ZodType<T>;
+}): Promise<{ entity: T; created: boolean }> {
   const { tableSql } = parseAndValidateTable(table);
-  const columns = extractAndValidateColumns(table, data as Record<string, unknown>);
-  const computedCols = Object.keys(computedColumns ?? {}) as Computed[];
+  const columns = extractAndValidateColumns(table, data);
 
   if (conflictColumns.length === 0) {
     throw new Error(`[${table}] conflictColumns cannot be empty`);
   }
 
-  if (updateColumns.length === 0 && computedCols.length === 0) {
-    throw new Error(`[${table}] updateColumns and computedColumns cannot both be empty`);
+  const uniqueConflictColumns = deduplicateAndValidateColumns(conflictColumns);
+
+  // Validate conflict columns exist in data.
+  validateColumnSubset(table, uniqueConflictColumns, columns, 'conflictColumns');
+
+  // Check if row already exists.
+  const conflictValues = uniqueConflictColumns.map((col) => data[col]);
+  const conflictParamIndexMap = new Map(uniqueConflictColumns.map((col, idx) => [col, idx + 1]));
+  const whereClause = buildWhereClause(uniqueConflictColumns, conflictParamIndexMap);
+
+  const existing = await client.query<T>(
+    `SELECT * FROM ${tableSql} WHERE ${whereClause}`,
+    conflictValues,
+  );
+
+  if (existing.rows.length > 0) {
+    const entity = existing.rows[0];
+    if (!entity) {
+      throw new Error(`[${table}] Expected existing row but got undefined`);
+    }
+    return { entity: schema.parse(entity), created: false };
   }
 
-  validateColumnSubset(table, updateColumns.map(String), columns, 'updateColumns');
-  validateNoOverlap(table, computedCols, columns);
-
-  const uniqueConflictColumns = deduplicateValidateAndSortColumns(conflictColumns);
-  const uniqueUpdateColumns = deduplicateValidateAndSortColumns(updateColumns);
-
-  const values = columns.map((col) => data[col as keyof I]);
+  // Insert new row.
+  const values = columns.map((col) => data[col]);
   const placeholders = generatePlaceholders(columns.length);
 
-  const dataUpdateSet = buildDataUpdateSet(uniqueUpdateColumns);
-  const computedUpdateSet =
-    computedCols.length > 0 ? buildComputedUpdateSet(computedCols, computedColumns!) : '';
-  const updatedAtSet = '"updated_at" = NOW()';
-
-  const updateSet = [dataUpdateSet, computedUpdateSet, updatedAtSet].filter(Boolean).join(', ');
-
-  return client.query<T>(
+  const result = await client.query<T>(
     `
       INSERT INTO ${tableSql} (${quoteColumns(columns).join(', ')})
       VALUES (${placeholders.join(', ')})
-      ON CONFLICT (${quoteColumns(uniqueConflictColumns).join(', ')})
-      DO UPDATE SET ${updateSet}
       RETURNING *
     `.trim(),
     values,
   );
+
+  const entity = result.rows[0];
+  if (!entity) {
+    throw new Error(`[${table}] Insert did not return a row`);
+  }
+
+  return { entity: schema.parse(entity), created: true };
 }
 
 /**
@@ -226,7 +263,9 @@ function extractAndValidateColumns(table: string, data: Record<string, unknown>)
 
   const invalidColumns = columns.filter((col) => data[col] === undefined);
   if (invalidColumns.length > 0) {
-    throw new Error(`[${table}] Cannot insert: columns [${invalidColumns.join(', ')}] have undefined values`);
+    throw new Error(
+      `[${table}] Cannot insert: columns [${invalidColumns.join(', ')}] have undefined values`,
+    );
   }
 
   return columns;

@@ -3,12 +3,12 @@ import { createSelectSchema } from 'drizzle-zod';
 import type { z } from 'zod';
 
 import { subLists } from '../db/schema.js';
-import { upsertPartial, update } from '../db/db.js';
+import { upsert, update } from '../db/db.js';
 import { validateSchemaName } from '../utils/sqlValidation.js';
 
 import type { UpdateResult, EventPointer } from './types.js';
 
-const subListSchema = createSelectSchema(subLists);
+export const subListSchema = createSelectSchema(subLists);
 export type SubList = z.infer<typeof subListSchema>;
 
 const upsertSubListInputSchema = subListSchema.pick({
@@ -52,25 +52,6 @@ export class SubListsRepository {
   }
 
   /**
-   * Finds a sub-list by account ID.
-   *
-   * @param accountId - The sub-list account ID.
-   * @returns The sub-list if found, null otherwise.
-   */
-  async findById(accountId: string): Promise<SubList | null> {
-    const result = await this.client.query<SubList>(
-      `SELECT * FROM ${this.schema}.sub_lists WHERE account_id = $1`,
-      [accountId],
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    return subListSchema.parse(result.rows[0]);
-  }
-
-  /**
    * Ensures a sub-list exists, creating it if necessary or updating if it exists.
    *
    * Replayable: running with the same inputs yields the same persisted state.
@@ -95,36 +76,11 @@ export class SubListsRepository {
       last_event_log_index: eventPointer.last_event_log_index,
     };
 
-    const result = await upsertPartial<
-      SubList,
-      typeof upsertData,
-      'account_id',
-      | 'is_valid'
-      | 'parent_account_id'
-      | 'parent_account_type'
-      | 'root_account_id'
-      | 'root_account_type'
-      | 'last_processed_ipfs_hash'
-      | 'last_event_block'
-      | 'last_event_tx_index'
-      | 'last_event_log_index',
-      SubList
-    >({
+    const result = await upsert<SubList>({
       client: this.client,
       table: `${this.schema}.sub_lists`,
       data: upsertData,
       conflictColumns: ['account_id'],
-      updateColumns: [
-        'is_valid',
-        'parent_account_id',
-        'parent_account_type',
-        'root_account_id',
-        'root_account_type',
-        'last_processed_ipfs_hash',
-        'last_event_block',
-        'last_event_tx_index',
-        'last_event_log_index',
-      ],
     });
 
     const subList = subListSchema.parse(result.rows[0]);

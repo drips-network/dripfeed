@@ -47,7 +47,6 @@ export class MetadataService {
       logger.info('project_metadata_retrieved', {
         ipfsHash: cId,
         accountId: metadata.describes?.accountId,
-        metadata,
       });
 
       this._assertIsGitHubProjectMeta(metadata);
@@ -73,7 +72,6 @@ export class MetadataService {
       logger.info('nft_driver_account_metadata_retrieved', {
         ipfsHash: cId,
         accountId: metadata.describes?.accountId,
-        metadata,
       });
 
       return metadata;
@@ -109,7 +107,7 @@ export class MetadataService {
 
       logger.info('immutable_splits_driver_metadata_retrieved', {
         ipfsHash: cId,
-        metadata,
+        rootAccountId: metadata.root.accountId,
       });
 
       return metadata;
