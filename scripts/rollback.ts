@@ -46,6 +46,26 @@ async function rollback(options: RollbackOptions): Promise<void> {
   );
   console.log();
 
+  // Determine if connection is local or remote.
+  const isLocalDb = /(?:localhost|127\.0\.0\.1|::1|\/var\/run\/|\.sock)/i.test(options.dbUrl);
+  const connectionType = isLocalDb ? 'LOCAL' : 'REMOTE';
+  const connectionColor = isLocalDb ? 'yellow' : 'red';
+  const connectionEmoji = isLocalDb ? '🏠' : '🌐';
+
+  console.log(
+    boxen(
+      chalk.bold[connectionColor](
+        `${connectionEmoji} DATABASE CONNECTION: ${connectionType} ${connectionEmoji}`,
+      ),
+      {
+        padding: 1,
+        borderColor: connectionColor,
+        borderStyle: 'bold',
+      },
+    ),
+  );
+  console.log();
+
   // Display preview of what will be affected.
   console.log(
     boxen(chalk.bold('Database Connection & Target Information'), {
@@ -291,7 +311,11 @@ async function rollback(options: RollbackOptions): Promise<void> {
     console.log(
       `     ${chalk.blue(`npm run inspect:orphans -- --db-url "${options.dbUrl}" --schema ${options.schema} --network ${options.network} --block ${block} --rpc-url "${options.rpcUrl}"`)}`,
     );
-    console.log('  3. Restart the indexer to resume from the rolled-back cursor position');
+    console.log('  3. Monitor indexing progress:');
+    console.log(
+      `     ${chalk.blue(`tsx scripts/monitor-progress.ts --db-url "${options.dbUrl}" --schema ${options.schema} --rpc-url "${options.rpcUrl}"`)}`,
+    );
+    console.log('  4. Restart the indexer to resume from the rolled-back cursor position');
     console.log();
   } catch (error) {
     console.log();
