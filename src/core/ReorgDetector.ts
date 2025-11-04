@@ -120,7 +120,7 @@ export class ReorgDetector {
 
       // Hash mismatch: Reorg detected at this block.
       if (currentBlock.hash !== storedHash) {
-        logger.warn('reorg_hash_mismatch', {
+        logger.info('reorg_hash_mismatch', {
           schema: this._schema,
           chain: this._chainId,
           block: blockNumber.toString(),
@@ -175,9 +175,9 @@ export class ReorgDetector {
         throw new Error(errorMsg);
       }
 
-      // Auto-recovery enabled: Log as warning.
+      // Auto-recovery enabled: Log as info.
       if (this._autoHandleReorgs) {
-        logger.warn('reorg_detected', {
+        logger.info('reorg_detected', {
           schema: this._schema,
           chain: this._chainId,
           earliestReorgBlock: earliestReorgBlock.toString(),
