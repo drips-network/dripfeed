@@ -155,7 +155,7 @@ export class RpcClient {
 
         // Log successful retry after previous failures.
         if (attempt > 0) {
-          logger.info('rpc_retry_success', {
+          logger.debug('rpc_retry_success', {
             chainId: this._chainId,
             context,
             attempt,
@@ -164,6 +164,11 @@ export class RpcClient {
 
         return result;
       } catch (error) {
+        console.error(
+          '=== CAUGHT IN _withRetry ===',
+          context,
+          JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        );
         lastError = error as Error;
         const errorType = this._classifyError(lastError);
 
