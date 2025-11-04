@@ -24,7 +24,7 @@ export class LockManager {
    */
   async acquire(): Promise<void> {
     const lockId = this._createLockId();
-    const maxAttempts = 5; // Initial attempt + 4 retries for deployment handoff.
+    const maxAttempts = 10; // Initial attempt + 9 retries for deployment handoff.
     const retryDelayMs = 2000;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
