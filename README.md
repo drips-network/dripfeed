@@ -73,11 +73,6 @@ The Docker setup includes:
    - Password: `POSTGRES_PASSWORD` (default: admin)
    - Database: `POSTGRES_DB` (default: dripfeeddb)
 
-> ⚠️ **Important**
->
-> - **One indexer per chain per schema** - Each chain needs a unique `DB_SCHEMA`. Never run multiple instances for the same chain/schema.
-> - **Container-managed dependencies** - `node_modules` are managed inside the container to prevent platform-specific binary conflicts.
-
 ## 🛠️ Development
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) guide
