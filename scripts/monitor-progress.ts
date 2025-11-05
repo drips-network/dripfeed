@@ -1,5 +1,12 @@
 #!/usr/bin/env tsx
 
+/**
+ * SCRIPT: Monitor Progress
+ *
+ * Real-time monitoring of indexing progress displaying current block position,
+ * processing speed, blocks remaining, and estimated time to completion.
+ */
+
 import { Pool } from 'pg';
 import { createPublicClient, http } from 'viem';
 import boxen from 'boxen';
@@ -8,6 +15,7 @@ import Table from 'cli-table3';
 import { Command } from 'commander';
 
 import { validateSchemaName } from '../src/utils/sqlValidation.js';
+
 import { formatNumber } from './shared/formatting.js';
 
 type ProgressMetrics = {

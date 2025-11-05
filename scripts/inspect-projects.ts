@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Projects
+ *
+ * Displays comprehensive information about projects including verification status,
+ * splits validity, visibility, forge distribution, and identifies invalid or hidden projects.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

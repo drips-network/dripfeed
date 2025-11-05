@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Account History
+ *
+ * Visualizes the complete event history for any account across all event types,
+ * including metadata changes, ownership transfers, splits configurations, and more.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

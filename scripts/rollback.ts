@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Rollback
+ *
+ * Rolls back the indexer state to a specific block by deleting events and block hashes
+ * from that point onwards, then resets the cursor for re-indexing from that block.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

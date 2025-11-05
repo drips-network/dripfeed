@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Post-Generate Migration
+ *
+ * Post-processes Drizzle-generated migrations to make them schema-agnostic
+ * by removing hardcoded "public" schema prefixes from SQL statements.
+ */
+
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
@@ -6,10 +13,6 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/**
- * Post-processes Drizzle-generated migrations to make them schema-agnostic.
- * Removes hardcoded "public". schema prefix from CREATE TYPE statements.
- */
 async function postProcessMigrations(): Promise<void> {
   const migrationsDir = join(__dirname, '..', 'src', 'db', 'migrations');
   const files = await readdir(migrationsDir);

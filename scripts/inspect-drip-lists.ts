@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Drip Lists
+ *
+ * Displays comprehensive information about drip lists including validity,
+ * visibility, voting rounds, invalid splits, and hidden drip lists.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

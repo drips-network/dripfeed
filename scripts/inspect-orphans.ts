@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Orphans
+ *
+ * Identifies orphaned domain entities - records without corresponding events
+ * that may have been caused by reorgs, bugs, or incomplete cleanup operations.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

@@ -1,3 +1,11 @@
+/**
+ * SCRIPT: Compare Databases
+ *
+ * Compares drip lists and projects between two databases to identify differences,
+ * inconsistencies, and records that exist in one database but not the other.
+ * Used for ensuring data integrity during hard (DB) refactorings.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

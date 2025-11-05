@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Migrate
+ *
+ * Applies database migrations by loading SQL files from the migrations directory
+ * and executing them in order, tracking applied migrations to avoid duplicates.
+ */
+
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';

@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Database Status
+ *
+ * Checks database and indexer health status including event processing rates,
+ * failed events, pending transfers, and overall system health metrics.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';

@@ -6,6 +6,8 @@ As a "read-only" service, Dripfeed and Drips GraphQL API function solely as a qu
 
 ## 🚀 Running the Service
 
+> ⚠️ Dripfeed is designed to run as a **single instance per blockchain network**.
+
 ### Locally
 
 1. Copy `.env.example` to `.env` and configure:
@@ -72,13 +74,9 @@ The Docker setup includes:
    - Database: `POSTGRES_DB` (default: dripfeeddb)
 
 > ⚠️ **Important**
-
-- **One indexer per chain per schema**
-  Each chain requires a unique `DB_SCHEMA`.
-  Do **not** run multiple indexer instances for the same chain and schema.
-
-- **Container-managed dependencies**
-  `node_modules` are managed **inside the container** to prevent platform-specific binary conflicts (e.g. `esbuild`).
+>
+> - **One indexer per chain per schema** - Each chain needs a unique `DB_SCHEMA`. Never run multiple instances for the same chain/schema.
+> - **Container-managed dependencies** - `node_modules` are managed inside the container to prevent platform-specific binary conflicts.
 
 ## 🛠️ Development
 

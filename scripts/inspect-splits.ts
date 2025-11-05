@@ -1,3 +1,10 @@
+/**
+ * SCRIPT: Inspect Splits
+ *
+ * Displays comprehensive information about splits receivers for a specific account,
+ * including receiver types, relationships, weight distributions, and validates total weight allocation.
+ */
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
