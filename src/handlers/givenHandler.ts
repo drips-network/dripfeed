@@ -19,7 +19,7 @@ type GivenEvent = HandlerEvent & {
 
 export const givenHandler: EventHandler<GivenEvent> = async (event, ctx) => {
   const { accountId, receiver, erc20, amt } = event.args;
-  const { client, schema } = ctx;
+  const { client, schema, cacheInvalidationService } = ctx;
 
   const givenEvent = givenEventSchema.parse({
     account_id: accountId.toString(),
@@ -38,6 +38,11 @@ export const givenHandler: EventHandler<GivenEvent> = async (event, ctx) => {
     data: givenEvent,
     conflictColumns: ['transaction_hash', 'log_index'],
   });
+
+  await cacheInvalidationService.invalidate(
+    [accountId.toString(), receiver.toString()],
+    event.blockTimestamp,
+  );
 
   logger.info('given_event_processed', {
     accountId: accountId.toString(),
