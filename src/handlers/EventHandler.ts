@@ -46,4 +46,10 @@ export type HandlerContext = {
   readonly contracts: Contracts;
   readonly cacheInvalidationService: CacheInvalidationService;
   readonly visibilityThresholdBlockNumber: bigint;
+  /**
+   * Collector for additional AccountIds that handlers discover via DB lookups.
+   * EventProcessor will combine these with auto-detected IDs from event args.
+   * Handlers should push to this array to register additional cache invalidations.
+   */
+  additionalAccountIdsToInvalidate: string[];
 };

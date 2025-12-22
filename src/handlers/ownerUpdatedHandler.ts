@@ -21,7 +21,7 @@ type OwnerUpdatedEvent = HandlerEvent & {
 
 export const ownerUpdatedHandler: EventHandler<OwnerUpdatedEvent> = async (event, ctx) => {
   const { accountId, owner } = event.args;
-  const { client, schema, contracts, cacheInvalidationService } = ctx;
+  const { client, schema, contracts, additionalAccountIdsToInvalidate } = ctx;
   const eventPointer = toEventPointer(event);
   const accountIdStr = accountId.toString();
   const ownerAccountIdStr = (await contracts.addressDriver.read.calcAccountId([owner])).toString();
@@ -109,8 +109,5 @@ export const ownerUpdatedHandler: EventHandler<OwnerUpdatedEvent> = async (event
     logger.warn('owner_updated_unsupported_account', { accountId: accountIdStr });
   }
 
-  await cacheInvalidationService.invalidate(
-    [accountIdStr, ownerAccountIdStr],
-    event.blockTimestamp,
-  );
+  additionalAccountIdsToInvalidate.push(ownerAccountIdStr);
 };

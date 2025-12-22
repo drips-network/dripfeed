@@ -32,7 +32,7 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
     pendingNftTransfersRepo,
     contracts,
     visibilityThresholdBlockNumber,
-    cacheInvalidationService,
+    additionalAccountIdsToInvalidate,
   } = ctx;
 
   const transferEvent = transferEventSchema.parse({
@@ -57,14 +57,8 @@ export const transferHandler: EventHandler<TransferEvent> = async (event, ctx) =
   const isMint = from === zeroAddress;
   const ownerAccountId = (await contracts.addressDriver.read.calcAccountId([to])).toString();
 
-  await cacheInvalidationService.invalidate(
-    [
-      accountId,
-      (await contracts.addressDriver.read.calcAccountId([from])).toString(),
-      ownerAccountId,
-    ],
-    event.blockTimestamp,
-  );
+  const fromAccountId = (await contracts.addressDriver.read.calcAccountId([from])).toString();
+  additionalAccountIdsToInvalidate.push(fromAccountId, ownerAccountId);
 
   const commonData = {
     owner_address: to,
