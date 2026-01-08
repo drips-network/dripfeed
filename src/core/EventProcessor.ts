@@ -11,6 +11,7 @@ import type { CacheInvalidationService } from '../services/CacheInvalidationServ
 import type { MetadataService } from '../services/MetadataService.js';
 import type { Contracts } from '../services/Contracts.js';
 import { getTracer, getMeter } from '../telemetry.js';
+import { extractAccountIdsFromArgs } from '../utils/accountIdUtils.js';
 
 import type { EventDecoder } from './EventDecoder.js';
 
@@ -88,26 +89,7 @@ export class EventProcessor {
         }
 
         const context = this._buildHandlerContext(client);
-        const handler = this._decoder.resolveHandler(event.contractAddress, event.eventName);
-        const handlerEvent = this._toHandlerEvent(event);
-
-        logger.info('handler_executing', {
-          schema: this._schema,
-          chainId: this._chainId,
-          eventName: event.eventName,
-          handler: handler.name,
-          pointer: this._formatEventPointer(event),
-        });
-
-        await handler(handlerEvent, context);
-
-        logger.info('handler_completed', {
-          schema: this._schema,
-          chainId: this._chainId,
-          eventName: event.eventName,
-          handler: handler.name,
-          pointer: this._formatEventPointer(event),
-        });
+        await this._executeHandler(event, context);
 
         await this._eventsRepo.markEventProcessed(
           client,
@@ -167,6 +149,34 @@ export class EventProcessor {
       handler: handler.name,
       pointer: this._formatEventPointer(event),
     });
+
+    await this._invalidateCacheForEvent(handlerEvent, context);
+  }
+
+  /**
+   * Invalidates cache for AccountIds affected by an event.
+   * Combines auto-detected IDs from event args with handler-specified additional IDs.
+   */
+  private async _invalidateCacheForEvent(
+    event: HandlerEvent,
+    context: HandlerContext,
+  ): Promise<void> {
+    const argsAccountIds = extractAccountIdsFromArgs(event.args);
+    const allAccountIds = [...argsAccountIds, ...context.additionalAccountIdsToInvalidate];
+    const uniqueAccountIds = [...new Set(allAccountIds)];
+
+    if (uniqueAccountIds.length > 0) {
+      await this._cacheInvalidationService.invalidate(uniqueAccountIds, event.blockTimestamp);
+
+      logger.debug('cache_invalidated_for_event', {
+        schema: this._schema,
+        chainId: this._chainId,
+        eventName: event.eventName,
+        argsAccountIds,
+        additionalAccountIds: context.additionalAccountIdsToInvalidate,
+        totalUniqueAccountIds: uniqueAccountIds.length,
+      });
+    }
   }
 
   /**
@@ -182,6 +192,7 @@ export class EventProcessor {
       contracts: this._contracts,
       cacheInvalidationService: this._cacheInvalidationService,
       visibilityThresholdBlockNumber: this._visibilityThresholdBlockNumber,
+      additionalAccountIdsToInvalidate: [],
     };
   }
 
@@ -235,6 +246,7 @@ export class EventProcessor {
           const context = this._buildHandlerContext(client);
 
           for (const event of batch) {
+            context.additionalAccountIdsToInvalidate.length = 0; // Reset for each event.
             await this._executeHandler(event, context);
 
             await this._eventsRepo.markEventProcessed(

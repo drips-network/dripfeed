@@ -126,10 +126,6 @@ export const accountMetadataEmittedHandler: EventHandler<AccountMetadataEmittedE
     return;
   }
 
-  await ctx.cacheInvalidationService.invalidate(
-    (await ctx.splitsRepo.getCurrentSplitReceiversBySender(accountIdStr)).map(
-      (sr) => sr.receiver_account_id,
-    ),
-    event.blockTimestamp,
-  );
+  const splitReceivers = await ctx.splitsRepo.getCurrentSplitReceiversBySender(accountIdStr);
+  ctx.additionalAccountIdsToInvalidate.push(...splitReceivers.map((sr) => sr.receiver_account_id));
 };

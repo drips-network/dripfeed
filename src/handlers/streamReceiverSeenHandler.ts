@@ -19,7 +19,7 @@ type StreamReceiverSeen = HandlerEvent & {
 
 export const streamReceiverSeenHandler: EventHandler<StreamReceiverSeen> = async (event, ctx) => {
   const { receiversHash, accountId, config } = event.args;
-  const { cacheInvalidationService, splitsRepo, client, schema } = ctx;
+  const { splitsRepo, client, schema, additionalAccountIdsToInvalidate } = ctx;
 
   const streamReceiverSeenEvent = streamReceiverSeenEventSchema.parse({
     account_id: accountId.toString(),
@@ -44,10 +44,6 @@ export const streamReceiverSeenHandler: EventHandler<StreamReceiverSeen> = async
     receiversHash,
   });
 
-  const splits = await splitsRepo.getCurrentSplitReceiversByReceiversHash(receiversHash);
-
-  await cacheInvalidationService.invalidate(
-    splits.map((split) => split.id.toString()),
-    event.blockTimestamp,
-  );
+  const splitReceivers = await splitsRepo.getCurrentSplitReceiversByReceiversHash(receiversHash);
+  additionalAccountIdsToInvalidate.push(...splitReceivers.map((split) => split.id.toString()));
 };
