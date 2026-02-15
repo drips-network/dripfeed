@@ -12,34 +12,37 @@ export function isRepoDriverId(id: string): boolean {
 }
 
 /**
- * Extracts the forge ID from a RepoDriver account ID.
+ * Extracts the source ID from a RepoDriver account ID.
+ *
+ * Account ID layout: `driverId (32 bits) | sourceId (7 bits) | isHash (1 bit) | nameEncoded (216 bits)`
+ *
+ * The 8 bits at positions 216-223 encode `sourceId (7 bits) | isHash (1 bit)`.
+ * We shift right by 1 to drop the isHash bit and get the pure sourceId.
  */
-function extractForgeFromAccountId(accountId: string) {
+function extractSourceIdFromAccountId(accountId: string): number {
   const accountIdAsBigInt = BigInt(accountId);
-  // Extract forgeId from bits 216-223 (8 bits after the 32-bit driver ID)
-  const forgeId = (accountIdAsBigInt >> 216n) & 0xffn;
-  return Number(forgeId);
+  const sourceIdAndHash = (accountIdAsBigInt >> 216n) & 0xffn;
+  return Number(sourceIdAndHash >> 1n);
 }
 
 /**
  * Checks if the given account ID represents an ORCID account.
  */
 export function isOrcidAccount(accountId: string): boolean {
-  // ForgeId for ORCID in account IDs. Value is 4 (not 2 like Forge.ORCID enum)
-  //because forgeId encodes both forge type and name length: 0,1=GitHub, 2,3=GitLab, 4=ORCID.
-  const ORCID_FORGE_ID = 4;
+  // Source IDs for ORCID: 2 = orcid, 4 = orcidSandbox
+  const ORCID_SOURCE_IDS = [2, 4];
 
-  return isRepoDriverId(accountId) && extractForgeFromAccountId(accountId) === ORCID_FORGE_ID;
+  return (
+    isRepoDriverId(accountId) && ORCID_SOURCE_IDS.includes(extractSourceIdFromAccountId(accountId))
+  );
 }
 
 /**
  * Checks if the given account ID represents a GitHub project.
  */
 export function isProject(accountId: string): boolean {
-  // ForgeId for GitHub in account IDs. Value is 0 or 1 depending on name length.
-  const GITHUB_FORGE_IDS = [0, 1];
+  // Source ID 0 = GitHub
+  const GITHUB_SOURCE_ID = 0;
 
-  return (
-    isRepoDriverId(accountId) && GITHUB_FORGE_IDS.includes(extractForgeFromAccountId(accountId))
-  );
+  return isRepoDriverId(accountId) && extractSourceIdFromAccountId(accountId) === GITHUB_SOURCE_ID;
 }
