@@ -1,3 +1,4 @@
+import { accountIdSeenHandler } from './accountIdSeenHandler.js';
 import { accountMetadataEmittedHandler } from './AccountMetadataEmitted/accountMetadataEmittedHandler.js';
 import type { EventHandler } from './EventHandler.js';
 import { givenHandler } from './givenHandler.js';
@@ -27,6 +28,7 @@ export const registry: Record<string, EventHandler> = {
   Transfer: transferHandler as EventHandler,
   SplitsSet: splitsSetHandler as EventHandler,
   StreamsSet: streamsSetHandler as EventHandler,
+  AccountIdSeen: accountIdSeenHandler as EventHandler,
   OwnerUpdated: ownerUpdatedHandler as EventHandler,
   SqueezedStreams: squeezedStreamsHandler as EventHandler,
   StreamReceiverSeen: streamReceiverSeenHandler as EventHandler,

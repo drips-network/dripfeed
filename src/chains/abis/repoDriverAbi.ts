@@ -64,6 +64,16 @@ export const repoDriverAbi = [
     anonymous: false,
     inputs: [
       { indexed: true, internalType: 'uint256', name: 'accountId', type: 'uint256' },
+      { indexed: false, internalType: 'uint8', name: 'sourceId', type: 'uint8' },
+      { indexed: false, internalType: 'bytes', name: 'name', type: 'bytes' },
+    ],
+    name: 'AccountIdSeen',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'accountId', type: 'uint256' },
       { indexed: false, internalType: 'enum Forge', name: 'forge', type: 'uint8' },
       { indexed: false, internalType: 'bytes', name: 'name', type: 'bytes' },
       { indexed: false, internalType: 'address', name: 'payer', type: 'address' },

@@ -10,7 +10,7 @@ export const DRIPS_EVENTS = [
 
 export const NFT_DRIVER_EVENTS = ['Transfer'];
 
-export const REPO_DRIVER_EVENTS = ['OwnerUpdateRequested', 'OwnerUpdated'];
+export const REPO_DRIVER_EVENTS = ['AccountIdSeen', 'OwnerUpdateRequested', 'OwnerUpdated'];
 
 export const ADDRESS_DRIVER_EVENTS: string[] = [];
 
