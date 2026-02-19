@@ -3,15 +3,15 @@ import * as c from '../contractConfigFactories.js';
 
 export const sepoliaConfig = {
   chainId: 11155111,
-  startBlock: 4416384,
+  startBlock: 10140802,
   visibilityThresholdBlockNumber: 0,
   contracts: [
-    c.drips('0x74A32a38D945b9527524900429b083547DeB9bF4'),
-    c.nftDriver('0xdC773a04C0D6EFdb80E7dfF961B6a7B063a28B44'),
-    c.repoDriver('0xa71bdf410D48d4AA9aE1517A69D7E1Ef0c179b2B'),
-    c.addressDriver('0x70E1E1437AeFe8024B6780C94490662b45C3B567'),
-    c.repoDeadlineDriver('0x4e576318213e3c9b436d0758a021a485c5d8b929'),
-    c.repoSubAccountDriver('0x317400fd9dfdad78d53a34455d89beb8f03f90ee'),
-    c.immutableSplitsDriver('0xC3C1955bb50AdA4dC8a55aBC6d4d2a39242685c1'),
+    c.drips('0x2cd644bACE1926DeA14693c125F4751c9B25f661'),
+    c.nftDriver('0x07418488D535fed8E765e9Ca993611BceA79af00'),
+    c.repoDriver('0xE2111564E384d6D55D1Ce6e3dF5f2cfE24004DfA'),
+    c.addressDriver('0xB77F6Ed18E58d4f9d4986F23BcE40fcb9ce3B05a'),
+    c.repoDeadlineDriver('0x67672F910B9195F232beC4F4040a0F2d0218402c'),
+    c.repoSubAccountDriver('0xA3F066e41DF5c0037ED67dA0a546bC9382B46fD1'),
+    c.immutableSplitsDriver('0x8714cEFdd6e19f309dF4aEd3500994011cA9097C'),
   ],
 } as const as ChainConfig;
