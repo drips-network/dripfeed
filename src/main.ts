@@ -52,13 +52,13 @@ let giverWatcher: InstanceType<typeof GiverWatcherService> | undefined;
 if (runtimeConfig.giverWatcher.enabled && watchedGiversRepo) {
   const watcherClient = createPublicClient({
     chain: {
-      id: runtimeConfig.chain.id,
+      ...({ id: runtimeConfig.chain.id } as Chain),
       contracts: {
         multicall3: {
-          address: '0xcA11bde05977b3631167028862bE2a173976CA11' as const,
+          address: '0xcA11bde05977b3631167028862bE2a173976CA11',
         },
       },
-    } as Chain,
+    },
     transport: http(runtimeConfig.chain.rpcUrl, {
       timeout: 30000,
       fetchOptions: runtimeConfig.chain.rpcAccessToken
