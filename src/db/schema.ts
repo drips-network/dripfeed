@@ -523,6 +523,32 @@ export const splitsSetEvents = pgTable(
   ],
 );
 
+// Watched givers table.
+export const watchedGivers = pgTable(
+  'watched_givers',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    giver_address: text('giver_address').notNull(),
+    token_address: text('token_address').notNull(),
+    chain_id: text('chain_id').notNull(),
+    webhook_url: text('webhook_url').notNull(),
+    metadata: jsonb('metadata'),
+    last_known_balance: text('last_known_balance').notNull().default('0'),
+    is_active: boolean('is_active').notNull().default(true),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique().on(table.giver_address, table.token_address, table.chain_id),
+    index('idx_watched_givers_active')
+      .on(table.is_active)
+      .where(sql`is_active = true`),
+  ],
+);
+
 // Transfer events table.
 export const transferEvents = pgTable(
   'transfer_events',

@@ -40,6 +40,11 @@ const configSchema = z.object({
   health: z.object({
     port: z.number().int().positive().default(3000),
   }),
+  giverWatcher: z.object({
+    enabled: z.boolean().default(false),
+    pollIntervalMs: z.number().int().positive().default(10000),
+    batchSize: z.number().int().positive().default(50),
+  }),
 });
 
 export const runtimeConfigSchema = configSchema.extend({
@@ -98,6 +103,15 @@ function loadConfig(): Config {
     },
     health: {
       port: process.env.HEALTH_PORT ? parseInt(process.env.HEALTH_PORT, 10) : undefined,
+    },
+    giverWatcher: {
+      enabled: process.env.GIVER_WATCHER_ENABLED === 'true',
+      pollIntervalMs: process.env.GIVER_WATCHER_POLL_INTERVAL_MS
+        ? parseInt(process.env.GIVER_WATCHER_POLL_INTERVAL_MS, 10)
+        : undefined,
+      batchSize: process.env.GIVER_WATCHER_BATCH_SIZE
+        ? parseInt(process.env.GIVER_WATCHER_BATCH_SIZE, 10)
+        : undefined,
     },
   };
 

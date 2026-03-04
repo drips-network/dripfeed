@@ -15,6 +15,13 @@
       "when": 1761739000000,
       "tag": "0001_store_pending_reorg_state",
       "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772620296125,
+      "tag": "0002_shallow_blue_blade",
+      "breakpoints": true
     }
   ]
 }

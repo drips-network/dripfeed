@@ -3,7 +3,7 @@ import * as c from '../contractConfigFactories.js';
 
 export const sepoliaConfig = {
   chainId: 11155111,
-  startBlock: 10140802,
+  startBlock: 10381957, //10140802,
   visibilityThresholdBlockNumber: 0,
   contracts: [
     c.drips('0x2cd644bACE1926DeA14693c125F4751c9B25f661'),

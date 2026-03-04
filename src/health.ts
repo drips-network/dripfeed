@@ -1,10 +1,19 @@
 import http from 'node:http';
 
 import type { Pool } from 'pg';
+import { z } from 'zod';
 
 import { logger } from './logger.js';
 import type { RpcClient } from './core/RpcClient.js';
 import type { CursorRepository } from './repositories/CursorRepository.js';
+import type { WatchedGiversRepository } from './repositories/WatchedGiversRepository.js';
+
+const watchRequestSchema = z.object({
+  giverAddress: z.string().min(1),
+  tokenAddress: z.string().min(1),
+  webhookUrl: z.url(),
+  metadata: z.record(z.string(), z.unknown()).nullish(),
+});
 
 type HealthStatus = {
   status: 'OK' | 'Unhealthy' | 'Error';
@@ -28,6 +37,7 @@ export function createHealthServer(
   chainId: string,
   network: string,
   port: number,
+  watchedGiversRepo?: WatchedGiversRepository,
 ): http.Server {
   const STALE_TIMEOUT = 5 * 60 * 1000; // 5 minutes.
 
@@ -36,6 +46,53 @@ export function createHealthServer(
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
+
+    // POST /api/watch
+    if (req.method === 'POST' && url.pathname === '/api/watch') {
+      if (!watchedGiversRepo) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Giver watcher not enabled' }));
+        return;
+      }
+
+      try {
+        const body = await new Promise<string>((resolve, reject) => {
+          let data = '';
+          req.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          req.on('end', () => resolve(data));
+          req.on('error', reject);
+        });
+
+        const parsed = watchRequestSchema.parse(JSON.parse(body));
+
+        await watchedGiversRepo.upsert(pool, {
+          giverAddress: parsed.giverAddress,
+          tokenAddress: parsed.tokenAddress,
+          chainId,
+          webhookUrl: parsed.webhookUrl,
+          metadata: parsed.metadata ?? null,
+        });
+
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'watching', giverAddress: parsed.giverAddress }));
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Validation failed', details: error.issues }));
+          return;
+        }
+        logger.error('watch_endpoint_error', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal server error' }));
+      }
+      return;
+    }
+
+    // GET /api/health
     if (req.method !== 'GET' || url.pathname !== '/api/health') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not Found' }));
